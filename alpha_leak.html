@@ -1,0 +1,1431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alpha Leak — Arbbet · Cash &amp; Carry</title>
+<style>
+
+  :root{
+    --bg:#0d1117; --card:#161b22; --border:#30363d; --fg:#e6edf3; --muted:#8b949e;
+    --accent:#4da3ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding:20px}
+  h1{font-size:20px; margin:0 0 4px}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:18px; max-width:980px}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px}
+  .card.wide{grid-column:1/-1}
+  .card h2{font-size:14px; margin:0 0 10px; color:var(--accent)}
+  .row{display:flex; justify-content:space-between; align-items:center; gap:10px; margin:6px 0}
+  label{color:var(--muted); font-size:13px}
+  input,select{background:#0d1117; border:1px solid var(--border); color:var(--fg); border-radius:6px; padding:6px 8px; width:150px; font-size:14px}
+  select{width:250px}
+  .hint{color:var(--muted); font-size:12px; margin-top:4px}
+  .dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:6px}
+  .dot.ok{background:var(--ok)}
+  .big{font-size:22px; font-weight:700}
+  .pos{color:var(--ok)} .neg{color:var(--bad)} .warn{color:var(--warn)}
+  button{background:var(--accent); border:none; color:#04121f; font-weight:700; border-radius:7px; padding:7px 12px; cursor:pointer}
+  button.ghost{background:transparent; color:var(--accent); border:1px solid var(--accent)}
+  .assetBtn{background:transparent; color:var(--muted); border:1px solid var(--border); padding:7px 22px; font-size:15px}
+  #paneA1 .assetBtn.on{background:var(--accent); color:#04121f; border-color:var(--accent)}
+  .assetBtn.gold.on{background:#e6b422; color:#1a1400; border-color:#e6b422}
+  #goldConvCard{border-color:#e6b422; background:rgba(230,180,34,.06)}
+  #goldConvCard h2{color:#e6b422}
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  th{color:var(--muted); text-align:right; font-weight:600; padding:4px 6px; border-bottom:1px solid var(--border); white-space:nowrap}
+  td{padding:5px 6px; text-align:right; border-bottom:1px solid #21262d; white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  tr.best{background:rgba(63,185,80,.12)}
+  tr.sel{outline:2px solid var(--accent); outline-offset:-2px}
+  tr.feas td{cursor:pointer}
+  tr.infeas{opacity:.45}
+  .blank{border-color:var(--warn) !important; border-style:dashed !important}
+  canvas{width:100%; height:340px; background:#0d1117; border:1px solid var(--border); border-radius:8px}
+  .tag{background:#21262d; border:1px solid var(--border); border-radius:6px; padding:2px 8px; font-size:12px; color:var(--muted)}
+  .verdict{font-size:14px; font-weight:700; margin-top:8px; padding:8px 10px; border-radius:8px}
+  .verdict.ok{background:rgba(63,185,80,.12); color:var(--ok)}
+  .verdict.bad{background:rgba(248,81,73,.12); color:var(--bad)}
+  .kv{display:flex; justify-content:space-between; margin:4px 0; font-size:14px}
+  .kv span:first-child{color:var(--muted)}
+  button.ghost.bad{color:var(--warn); border-color:var(--warn); animation:sumPulse 1.2s infinite}
+  @keyframes sumPulse{50%{opacity:.45}}
+  #sumTable tbody tr{cursor:pointer}
+  .noEditBtn{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:0 5px;font-size:11px;cursor:pointer;margin-left:4px;line-height:16px}
+  .noEditBtn:hover{color:var(--accent);border-color:var(--accent)}
+  .noOverride{color:var(--accent);font-weight:700}
+  .noEditInput{width:74px;padding:2px 5px;font-size:12px;}
+  tr.now td{background:rgba(77,163,255,.10)}
+  tr.now td:first-child::after{content:" ◀ now"; color:var(--accent); font-size:11px; font-weight:700}
+.pct{font-weight:700}
+
+
+  :root{
+    --bg:#0d1117; --card:#161b22; --border:#30363d; --fg:#e6edf3; --muted:#8b949e;
+    --accent:#4da3ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --cc:#39c5cf;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding:20px}
+  h1{font-size:20px; margin:0 0 4px}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:18px; max-width:1100px}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px}
+  .card.wide{grid-column:1/-1}
+  #paneCC .card h2{font-size:14px; margin:0 0 10px; color:var(--cc)}
+  .row{display:flex; justify-content:space-between; align-items:center; gap:10px; margin:6px 0}
+  label{color:var(--muted); font-size:13px}
+  input,select{background:#0d1117; border:1px solid var(--border); color:var(--fg); border-radius:6px; padding:6px 8px; width:150px; font-size:14px}
+  select{width:250px}
+  .hint{color:var(--muted); font-size:12px; margin-top:4px}
+  .dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:6px}
+  .dot.ok{background:var(--ok)}
+  .big{font-size:22px; font-weight:700}
+  .pos{color:var(--ok)} .neg{color:var(--bad)} .warn{color:var(--warn)}
+  button{background:var(--accent); border:none; color:#04121f; font-weight:700; border-radius:7px; padding:7px 12px; cursor:pointer}
+  button.ghost{background:transparent; color:var(--accent); border:1px solid var(--accent)}
+  .assetBtn{background:transparent; color:var(--muted); border:1px solid var(--border); padding:7px 22px; font-size:15px}
+  #paneCC .assetBtn.on{background:var(--cc); color:#04252a; border-color:var(--cc)}
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  th{color:var(--muted); text-align:right; font-weight:600; padding:4px 6px; border-bottom:1px solid var(--border); white-space:nowrap}
+  td{padding:5px 6px; text-align:right; border-bottom:1px solid #21262d; white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  #paneCC tr.best{background:rgba(57,197,207,.12)}
+  #paneCC tr.sel{outline:2px solid var(--cc); outline-offset:-2px}
+  tr.infeas{opacity:.45}
+  .blank{border-color:var(--warn) !important; border-style:dashed !important}
+  .tag{background:#21262d; border:1px solid var(--border); border-radius:6px; padding:2px 8px; font-size:12px; color:var(--muted)}
+  .verdict{font-size:14px; font-weight:700; margin-top:8px; padding:8px 10px; border-radius:8px}
+  .verdict.ok{background:rgba(63,185,80,.12); color:var(--ok)}
+  .verdict.bad{background:rgba(248,81,73,.12); color:var(--bad)}
+  .kv{display:flex; justify-content:space-between; margin:4px 0; font-size:14px}
+  .kv span:first-child{color:var(--muted)}
+  .pct{font-weight:700}
+  .noEditBtn{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:0 5px;font-size:11px;cursor:pointer;margin-left:4px;line-height:16px}
+  #paneCC .noEditBtn:hover{color:var(--cc);border-color:var(--cc)}
+  #paneCC .noOverride{color:var(--cc);font-weight:700}
+  .noEditInput{width:74px;padding:2px 5px;font-size:12px;}
+
+
+  .tabs{display:flex; gap:8px; margin:14px 0 16px}
+  .tabBtn{background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:8px 22px; font-size:15px; font-weight:700; cursor:pointer}
+  .tabBtn.on{background:var(--accent); color:#04121f; border-color:var(--accent)}
+  .paneTitle{font-size:15px; font-weight:700; margin:2px 0 4px}
+  #paneInfo h3{font-size:13px; color:var(--fg); margin:16px 0 6px}
+  #paneInfo p{font-size:13px; color:var(--muted); margin:6px 0}
+  #paneInfo p b{color:var(--fg)}
+  #paneInfo .src{font-size:12px; color:var(--muted); margin-top:12px}
+  [hidden]{display:none !important}
+</style>
+</head>
+<body>
+<div id="sink" style="display:none"></div>
+<h1>Alpha Leak — strategy lab</h1>
+<div style="margin:10px 0 4px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+  <span style="flex:1"></span>
+  <button id="btnRefreshAll" class="ghost" onclick="a1RefreshAll();ccRefreshAll()" title="Re-fetch live data for both strategies">↻ Refresh all</button>
+</div>
+<div class="tabs">
+  <button id="tabArbbet" class="tabBtn on" onclick="showTab('a1')">Arbbet <span style="font-weight:400;font-size:12px">· spot + put + NO</span></button>
+  <button id="tabCC" class="tabBtn" onclick="showTab('cc')">Cash &amp; Carry <span style="font-weight:400;font-size:12px">· spot + 1× short future</span></button>
+  <button id="tabInfo" class="tabBtn" onclick="showTab('info')">Info</button>
+</div>
+
+<div id="paneA1">
+
+<div class="paneTitle">Arbbet — spot + long put + NO bet: positive at <b>any</b> price <span id="assetTag" style="color:var(--accent)">(ETH)</span></div>
+<div style="margin:10px 0 14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+  <button id="btnETH" class="assetBtn on" onclick="a1switchAsset('ETH')">ETH</button>
+  <button id="btnBTC" class="assetBtn" onclick="a1switchAsset('BTC')">BTC</button>
+  <button id="btnGOLD" class="assetBtn" onclick="a1switchAsset('GOLD')">GOLD (GC/GLD)</button>
+  <span style="flex:1"></span>
+  <button id="btnRefresh" class="ghost" onclick="a1refreshAll()" title="Re-fetch live data for all assets">↻ Refresh data</button>
+</div>
+
+<div class="grid">
+
+  <div class="card wide">
+    <h2>Feasibility summary — all assets <span id="sumStamp" style="color:var(--muted);font-size:12px;font-weight:400"></span></h2>
+    <div style="overflow-x:auto">
+    <table id="sumTable">
+      <thead><tr>
+        <th>Asset</th><th>Spot</th><th>Status</th><th>Put K</th><th>NO K</th><th>NO c</th><th>N</th>
+        <th>Min P&amp;L / $1k</th><th>Min ret</th><th>Best P&amp;L / $1k</th><th>Max ret</th><th>APY</th>
+      </tr></thead>
+      <tbody>
+        <tr id="sumETH"><td>ETH</td><td colspan="12" style="color:var(--muted)">computing…</td></tr>
+        <tr id="sumBTC"><td>BTC</td><td colspan="12" style="color:var(--muted)">computing…</td></tr>
+        <tr id="sumGOLD"><td>GOLD (GLD)</td><td colspan="12" style="color:var(--muted)">computing…</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⓪ Trading fees <span class="tag">net of fees</span></h2>
+    <div class="row"><label>Spot fee % (per trade)</label><input id="feeSpot" type="number" step="0.01" value="0.1" style="width:110px" oninput="a1calc()"></div>
+    <div class="row"><label>Options fee % of underlying</label><input id="feePut" type="number" step="0.001" value="0.03" style="width:110px" oninput="a1calc()"></div>
+    <div class="row"><label>Polymarket taker rate</label><input id="feePm" type="number" step="0.01" value="0.07" style="width:110px" oninput="a1calc()"></div>
+  </div>
+
+  <div class="card">
+    <h2>① Spot price <span class="tag">per $1,000 capital</span></h2>
+    <div class="row"><label><span class="sym">ETH</span> spot <span class="dot" id="dotSpot"></span><span id="spotLive" style="color:var(--muted);font-size:12px"></span></label>
+      <input id="spot" type="number" step="0.01" class="blank" placeholder="auto"></div>
+    <div class="row" style="margin-top:10px"><label>Days to settlement (31 Dec 2026)</label>
+      <input id="days" type="number" step="1" style="width:90px" oninput="a1calc()"></div>
+  </div>
+
+  <div class="card" id="goldConvCard" style="display:none">
+    <h2>①b GC ↔ GLD converter <span class="tag">1 GLD = <span id="ozOut">?</span> oz</span></h2>
+    <div class="row"><label>GLD price ($)</label><input id="gldSpot" type="number" step="0.01" oninput="a1goldConvChanged()" style="width:110px"></div>
+    <div class="row"><label>Gold GC price ($/oz)</label><input id="gcSpot" type="number" step="0.01" oninput="a1goldConvChanged()" style="width:110px"></div>
+    <div class="row"><label>oz per GLD share (auto = GLD ÷ GC)</label><input id="ozShare" type="number" step="0.00001" oninput="a1goldConvChanged()" style="width:110px"></div>
+    <div class="row"><label>Paste new GLD puts <span style="color:var(--muted);font-size:11px">(format: Info tab)</span></label>
+      <textarea id="gldPaste" rows="2" style="width:100%;background:#0d1117;border:1px dashed var(--warn);color:var(--fg);border-radius:6px;padding:6px;font-size:11px;font-family:monospace" placeholder="[[K,bid,ask,oi],…]" oninput="a1parseGLDPaste()"></textarea></div>
+  </div>
+
+  <div class="card">
+    <h2>② Long put (Bybit, cash-settled USDT, exp 25 Dec 2026)</h2>
+    <div class="row"><label>Put</label><select id="putSel" onchange="a1putFromSel()"><option value="">— manual —</option></select></div>
+    <div class="row" id="putManualRow" style="display:none"><label>Strike</label><input id="putK" type="number" step="1" class="blank" oninput="a1calc()"></div>
+    <div class="row"><label>Premium (ask, what you pay)</label><input id="putAsk" type="number" step="0.01" class="blank" oninput="a1calc()"></div>
+  </div>
+
+  <div class="card wide">
+    <h2>③ NO bet — "<span class="sym">ETH</span> reach $X by 31 Dec 2026" (Polymarket) <span class="dot" id="dotPM"></span><span id="pmLive" style="color:var(--muted);font-size:12px"></span></h2>
+    <div style="overflow-x:auto">
+    <table id="noTable">
+      <thead><tr>
+        <th>Strike</th><th>NO price</th><th>N range (always +)</th><th>Best N</th>
+        <th>Min P&amp;L / $1k</th><th>Min return</th>
+        <th>Best P&amp;L / $1k</th><th>Max return</th><th>APY</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    </div>
+    <div class="row" id="betManualRow" style="display:none;margin-top:8px">
+      <label>Manual: strike K</label><input id="betK" type="number" step="1" class="blank" oninput="a1calc()">
+      <label>NO price (c)</label><input id="noRate" type="number" step="0.01" class="blank" oninput="a1calc()">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>④ Bet size N (contracts of $100) <span class="tag">per $1,000 capital</span></h2>
+    <div class="row"><label>N</label>
+      <span style="display:flex;gap:6px;align-items:center">
+        <input id="betN" type="number" step="0.1" class="blank" oninput="a1calc()">
+        <button class="ghost" onclick="a1autoN()">⚡ Auto</button>
+      </span>
+    </div>
+    <div id="nBounds" style="margin-top:10px;font-size:13px"></div>
+  </div>
+
+  <div class="card">
+    <h2>⑤ Result</h2>
+    <div class="kv"><span>Capital (per-coin: spot + premium + N×NO)</span><b id="oCap">—</b></div>
+    <div class="kv"><span>Worst-case P&amp;L per $1,000 (min over all prices)</span><b id="oMin">—</b></div>
+    <div class="kv"><span><b>Worst-case return</b></span><b id="oMinPct" class="pct">—</b></div>
+    <div class="kv"><span>Best-case P&amp;L per $1,000 (NO still wins — price → just below NO strike)</span><b id="oMax">—</b></div>
+    <div class="kv"><span><b>Max return</b></span><b id="oMaxPct" class="pct">—</b></div>
+    <div class="kv"><span>Trading fees (spot 2× + put + NO entry)</span><b id="oFees" class="neg">—</b></div>
+    <div class="kv"><span><b>APY</b> (to 31 Dec 2026)</span><b id="oApy" class="big">—</b></div>
+    <div class="verdict" id="oVerdict" style="display:none"></div>
+  </div>
+
+  <div class="card wide">
+    <h2 id="sweepTitle">Entry sweep — best always-positive combo if <span class="sym">ETH</span> is at $2,400–$3,500 today</h2>
+    <table id="sweepTable">
+      <thead><tr>
+        <th>Entry</th><th>Put K</th><th>Prem $</th><th>NO K</th><th>NO c</th><th>N</th>
+        <th>Min P&amp;L / $1k</th><th>Min ret</th><th>Best P&amp;L / $1k</th><th>Max ret</th><th>APY</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card wide">
+    <h2>Payoff at settlement (31 Dec 2026) — all possible <span class="sym">ETH</span> prices <span class="tag">per $1,000 capital</span></h2>
+    <canvas id="chart" width="1160" height="340"></canvas>
+  </div>
+
+</div>
+<p style="color:var(--muted);font-size:12px;margin-top:12px"><span id="stamp"></span></p>
+
+</div>
+
+<div id="paneCC" hidden>
+
+<div class="paneTitle">Cash &amp; Carry — spot long + 1× short future <span id="ccassetTag" style="color:var(--cc)">(BTC)</span> <span class="tag">Binance Coin-M Delivery</span></div>
+<div style="margin:10px 0 14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+  <button id="ccbtnBTC" class="assetBtn on" onclick="ccswitchAsset('BTC')">BTC</button>
+  <button id="ccbtnETH" class="assetBtn" onclick="ccswitchAsset('ETH')">ETH</button>
+  <span style="flex:1"></span>
+  <button id="ccbtnRefresh" class="ghost" onclick="ccrefreshAll()" title="Re-fetch live data">↻ Refresh data</button>
+</div>
+
+<div class="grid">
+
+  <div class="card wide">
+    <h2>Delivery contracts — live basis &amp; APY <span id="ccccStamp" style="color:var(--muted);font-size:12px;font-weight:400"></span></h2>
+    <div style="overflow-x:auto">
+    <table id="ccccTable">
+      <thead><tr>
+        <th>Contract</th><th>Delivery</th><th>Days</th><th>Future price</th><th>Spot</th>
+        <th>Basis $</th><th>Basis %</th><th>APY (gross)</th><th>APY (net)</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⓪ Trading fees <span class="tag">net of fees</span></h2>
+    <div class="row"><label>Spot fee % (per trade)</label><input id="ccfeeSpot" type="number" step="0.01" value="0.1" style="width:110px" oninput="cccalc()"></div>
+    <div class="row"><label>Futures taker fee % (open)</label><input id="ccfeeFut" type="number" step="0.01" value="0.05" style="width:110px" oninput="cccalc()"></div>
+    <div class="row"><label>Initial margin % (required to open = 10)</label><input id="ccmarginPct" type="number" step="1" value="20" style="width:110px" oninput="cccalc()"></div>
+  </div>
+
+  <div class="card">
+    <h2>① Prices <span class="tag">per $1,000 capital</span></h2>
+    <div class="row"><label><span class="sym">BTC</span> spot <span class="dot" id="ccdotSpot"></span><span id="ccspotLive" style="color:var(--muted);font-size:12px"></span></label>
+      <input id="ccspot" type="number" step="0.01" class="blank" placeholder="auto"></div>
+    <div class="row" style="margin-top:10px"><label>Future price (ask, what you short) <span class="dot" id="ccdotFut"></span></label>
+      <input id="ccfutPrice" type="number" step="0.01" class="blank" placeholder="auto"></div>
+    <div class="row" style="margin-top:10px"><label>Contract</label>
+      <select id="ccccSel" onchange="cccontractFromSel()"><option value="">— manual —</option></select></div>
+  </div>
+
+  <div class="card">
+    <h2>② Result</h2>
+    <div class="kv"><span>Capital (spot + initial margin)</span><b id="ccoCap">—</b></div>
+    <div class="kv"><span>Basis locked in (future − spot)</span><b id="ccoBasis">—</b></div>
+    <div class="kv"><span>Trading fees (spot 2× + futures open)</span><b id="ccoFees" class="neg">—</b></div>
+    <div class="kv"><span><b>P&amp;L at delivery, per $1,000</b></span><b id="ccoPnl">—</b></div>
+    <div class="kv"><span><b>Return</b></span><b id="ccoPct" class="pct">—</b></div>
+    <div class="kv"><span><b>APY</b> (to delivery)</span><b id="ccoApy" class="big">—</b></div>
+    <div class="kv"><span>Days to delivery</span><b id="ccoDays">—</b></div>
+    <div class="verdict" id="ccoVerdict" style="display:none"></div>
+  </div>
+
+</div>
+<p style="color:var(--muted);font-size:12px;margin-top:12px"><span id="ccstamp"></span></p>
+</div>
+
+<div id="paneInfo" hidden>
+
+<div class="paneTitle">Info — how the strategies work</div>
+
+<div class="grid">
+
+  <div class="card">
+    <h2>Arbbet — Spot + Put + NO</h2>
+    <p>Buy <b>1 ETH spot</b>, buy <b>N Dec-2026 puts</b> (strike below spot) on Bybit, and buy <b>NO shares</b> on Polymarket on the
+      "ETH reach $X by 31 Dec 2026" market (X above spot). The put pays out if ETH <i>falls</i>; the NO pays out if ETH <i>doesn't reach</i> X.
+      Pick N so the worst case is still positive — that's the "arbitrage" window.</p>
+    <h3>Fee model (net of fees)</h3>
+    <p>Every P&amp;L is <b>after fees</b>: spot <b>buy + sell = 2×</b> your spot fee, put <b>open + close = 2×</b> your options fee
+      (Bybit options: 0.03% of underlying, capped at 12.5% of premium), NO <b>buy + sell = 2×</b> your Polymarket fee (0 if you hold to resolution).
+      Set a rate to 0 to ignore it.</p>
+    <h3>GC ↔ GLD converter</h3>
+    <p>Polymarket NO is priced on <b>GC</b> (CME gold, $/oz). GLD is a SPDR ETF — 1 share tracks ~1/10 oz of gold.
+      The converter gives you the oz-per-GLD ratio so you can compare a GLD-based NO against the GC strike.
+      GLD price is auto from Stooq — edit to override.</p>
+    <h3>NO bet — sizing</h3>
+    <p>Pick a NO strike (or type manually) — then <b>Auto</b> sizes N so the return is positive at every outcome:
+      the put covers the downside, the NO covers the upside. No strike listed → no feasible combo at that entry.</p>
+    <p><b>Safe range</b> (shown under the N input):
+      <b>Min N</b> — crash side, the NO payout must cover the loss down to the put strike:
+      <b>N &gt; (spot + premium − K_put) / (100 − NO price)</b>.
+      <b>Max N</b> — rally side, the NO cost must stay below the gain up to the NO strike:
+      <b>N &lt; (max(K_NO, K_put) − spot − premium) / NO price</b>.
+      <b>Balanced N</b> = (K_NO − K_put)/100 maximizes the worst case.
+      If the put strike is above the NO strike, the worst case is K_put − spot − N×NO price, so the smallest N is best.</p>
+    <h3>GLD put data</h3>
+    <p>The GLD Dec-2026 puts are an embedded CBOE snapshot — CBOE has no CORS, so they can't be fetched live.
+      To refresh, paste a fresh Dec-2026 GLD put list (e.g. <code>[[420,20.00,20.65,2282],[425,22.40,23.15,1729],…]</code> = [strike, bid, ask, OI])
+      into the ①b converter card in the Arbbet tab.</p>
+    <h3>Entry sweep</h3>
+    <p>Premium = live Bybit Dec-2026 put ask at each entry price (interpolated). NO price = live Polymarket ask (same market for every row).
+      Green = always-positive combo exists at that entry; red = no feasible N. The sweep answers: "if I had entered at $2,400 instead of today, what would I have done?"</p>
+    <h3>Sources</h3>
+    <p>Bybit (spot index + Dec-2026 cash-settled USDT puts) · Polymarket (ETH price markets, resolves 31 Dec 2026) · Stooq (GLD).
+      All P&amp;L per $1,000 of capital, net of fees. Educational tool — not financial advice.</p>
+  </div>
+
+  <div class="card">
+    <h2>Cash &amp; Carry — spot long + 1× short future</h2>
+    <p>Buy <b>1 BTC spot</b> and use it as margin to <b>short 1× BTC in the Coin-M delivery future</b> (contract price &gt; spot = contango).
+      At delivery the future settles to spot: the short leg closes at the same price the spot leg bought at, so the position is
+      <b>delta-neutral</b> and you keep the <b>basis = future − spot</b> as risk-free-ish yield (you still carry liquidation risk if the price gaps past your margin).
+      Result shown as <b>APY</b> to the contract's delivery date. All dollar figures are <b>per $1,000 of capital</b> (capital = spot + initial margin) —
+      <b>return % is the same at any size</b>.</p>
+    <h3>Setup</h3>
+    <p>Buy 1 BTC spot @ $S, post it as collateral, short 1 BTC delivery future @ $F (F &gt; S).</p>
+    <h3>At delivery</h3>
+    <p>The future settles to the final spot index. Your short leg closes at exactly the price your spot leg is worth → net price exposure ≈ 0.
+      You keep F − S (the basis) minus fees — regardless of where BTC ends up, as long as you survive to delivery.</p>
+    <h3>Risk</h3>
+    <p>If the price gaps up more than your free margin can absorb, the short leg gets liquidated and you're left long-only spot.
+      Initial margin 20% / maintenance 2.5% (tier-1) leaves a wide buffer, but a sustained rally against you is the failure mode —
+      that's the trade-off for the "risk-free" carry.</p>
+    <h3>Fee model (net of fees)</h3>
+    <p>Every P&amp;L is <b>after fees</b>: spot <b>buy + sell = 2×</b> your spot fee, futures <b>open</b> (taker) — the short is closed by delivery settlement, no fee.
+      Set a rate to 0 to ignore it. Capital = spot + initial margin (20% of notional). The margin is not extra cost — it's your own spot value locked up —
+      but it IS capital at work, so APY is measured on it.</p>
+    <h3>Contracts table</h3>
+    <p>Both live Binance Coin-M delivery contracts (end of Sep and end of Dec 2026). Basis = future − spot.
+      <b>APY (gross)</b> = basis ÷ spot annualized to delivery. <b>APY (net)</b> = after the fees above, on capital = spot + initial margin.
+      <b>✎</b> = override a stale/thin quote. Click a row to load it into the calculator.</p>
+    <h3>Sources</h3>
+    <p>Binance spot (api.binance.com) + Binance USDⓈ-M futures delivery (dapi.binance.com, contractSize 100 for BTC / 10 for ETH, 1 contract = 1 coin).
+      Delivery = 08:00 UTC on the expiry date.</p>
+  </div>
+
+</div>
+
+</div>
+
+<script>
+function showTab(k){
+  document.getElementById('paneA1').hidden = (k !== 'a1');
+  document.getElementById('paneCC').hidden = (k !== 'cc');
+  document.getElementById('paneInfo').hidden = (k !== 'info');
+  document.getElementById('tabArbbet').className = 'tabBtn' + (k === 'a1' ? ' on' : '');
+  document.getElementById('tabCC').className = 'tabBtn' + (k === 'cc' ? ' on' : '');
+  document.getElementById('tabInfo').className = 'tabBtn' + (k === 'info' ? ' on' : '');
+}
+</script>
+<script>
+/* ================= EP1 — Arbbet (spot + put + NO) ================= */
+
+const $ = id => document.getElementById(id);
+const a1SETTLE = new Date('2026-12-31T00:00:00Z');
+const a1ASSETS = {
+  ETH: { sym:'ETH', ev:/what price will ethereum hit in 2026/i, oz:1,
+         sweep:[2400,3500,100], putCap:400, sweepLabel:'$2,400–$3,500' },
+  BTC: { sym:'BTC', ev:/what price will bitcoin hit in 2026/i, oz:1,
+         sweep:[60000,120000,5000], putCap:30000, sweepLabel:'$60,000–$120,000' },
+  GOLD:{ sym:'GLD', ev:/will gold \(gc\) hit/i, oz:0.0924, isGold:true,
+         slug:'what-will-gold-gc-hit-by-end-of-december',
+         sweep:[380,480,10], putCap:200, sweepLabel:'$380–$480 (GLD)' },
+};
+let a1CUR = a1ASSETS.ETH;
+let a1noMarkets = [];   // {k (base unit), kDisplay, no}  — base = GLD for Gold, coin for ETH/BTC
+let a1noMarketsRaw = []; // {kOz, no} — strike in the NO's native unit (gold/oz for Gold, coin for crypto)
+let a1books = {};       // instrument -> {bid, ask, askBase, index}
+let a1paxgSpot = null;  // live gold/oz from Deribit PAXG (Gold only)
+let a1GLD_SNAP_SPOT = 423.36; // GLD snapshot spot (for premium scaling)
+// Embedded CBOE GLD Dec-2026 puts (delayed): [strike, bid, ask, OI] — CBOE has no CORS, so snapshot + paste-to-refresh
+let a1GLD_PUTS = [[205,0.09,0.25,682],[210,0.11,0.36,75],[215,0.11,0.38,265],[220,0.12,0.36,70],[245,0.18,0.38,61],[250,0.19,0.55,747],[255,0.20,0.45,382],[260,0.23,0.50,183],[265,0.24,0.69,99],[270,0.30,0.53,82],[275,0.21,0.77,263],[280,0.30,0.75,147],[285,0.45,0.71,429],[290,0.51,0.76,497],[295,0.54,1.00,640],[300,0.69,1.04,6415],[305,0.72,1.17,240],[310,0.65,1.27,9024],[315,0.92,1.19,765],[320,1.07,1.47,691],[325,1.22,1.49,865],[330,1.45,1.65,1442],[335,1.46,2.13,1732],[340,1.83,2.08,1942],[345,2.11,2.51,483],[350,2.55,2.82,3406],[355,2.89,3.20,969],[360,3.50,3.75,937],[365,3.90,4.30,780],[370,4.65,5.00,2022],[375,5.45,5.90,670],[380,6.35,6.80,1367],[385,7.40,7.95,1120],[390,8.60,9.20,2071],[395,10.30,10.60,969],[400,11.90,12.30,6099],[405,13.55,14.05,1013],[410,15.35,16.15,698],[415,17.65,18.20,709],[420,20.00,20.65,2282],[425,22.40,23.15,1729],[430,25.25,25.90,651],[435,28.10,28.80,732],[440,31.15,31.85,317],[445,34.35,35.05,1227],[450,37.70,38.45,941],[455,40.95,42.25,122],[460,44.30,45.95,63],[465,48.55,49.75,365],[470,52.35,53.65,770],[475,56.55,57.75,50],[480,60.65,61.95,209],[500,78.20,79.45,1315]];
+
+function a1num(id){ const v = parseFloat($(id).value); return isFinite(v) ? v : 0; }
+function a1fmt(v, d=2){ return isFinite(v) ? v.toLocaleString(undefined,{minimumFractionDigits:d, maximumFractionDigits:d}) : '—'; }
+/* Per-$1,000 scaling: Bybit's minimum is 0.1 contract, so all dollar figures are
+   shown per $1,000 of capital. sf = 1000 / capital-per-1-coin; P&L dollars × sf.
+   Return % and APY are ratios — unchanged at any size. */
+function a1sfOf(a){ return (a && a.capital > 0) ? 1000/a.capital : 1; }
+function a1money1k(a, v){ return (a && a.capital>0) ? v*1000/a.capital : v; }
+
+/* ---------- core math ----------
+   capital = spot + prem + N*no   (1 ETH spot + put premium + N NO contracts @ $no each)
+   P&L(S)  = (S - spot) + max(Kp - S, 0) + [S < Kb ? N*(100-no) : -N*no] - prem
+   Always-positive conditions (P&L > 0 for every S):
+     crash side (S -> 0):  Kp - spot - prem + N*(100-no) > 0  ->  N > (spot+prem-Kp)/(100-no)
+     rally side (S -> inf): min at S = max(Kb,Kp)  ->  N < (max(Kb,Kp)-spot-prem)/no
+   Worst-case P&L at N:
+     Kp <= Kb: min( Kp - spot - prem + N*(100-no),  Kb - spot - prem - N*no )
+     Kp >  Kb: Kp - spot - prem - N*no
+   Best-case P&L at N (the ③ NO bet still wins — price rises to just below the
+   NO strike Kb, so the NO pays out AND the spot gains; the put is OTM):
+     bestP = max(Kb, Kp) - spot + N*(100-no) - prem
+   (This is the max of P&L over the region S < Kb. Above Kb the NO bet loses,
+   so that is not a "best case" for the NO strategy.)
+------------------------------------------------ */
+function a1analyze(spot, Kp, prem, Kb, no, N){
+  const capital = spot + prem + N*no;
+  /* ---- trading fees (net P&L) ----
+     spot: buy 1 coin at entry + sell 1 coin at settlement = 2 × feeSpot% × spot
+     put:  Bybit options fee, entry only (expires worthless or is covered — no sell trade).
+           Bybit charges 0.03% of the underlying, capped at 12.5% of the premium:
+           fPut = min(feePut% × spot, 12.5% × prem)
+     NO:   Polymarket taker fee on entry = N*100 shares × feePm × p×(1−p), p = no/100
+           (winning shares are redeemed at settlement — no fee) */
+  const fSpot = 2*(a1num('feeSpot')/100)*spot;
+  const fPut  = Math.min((a1num('feePut')/100)*spot, 0.125*prem);
+  const fNo   = N*100*a1num('feePm')*(no/100)*(1-no/100);  // feePm is the rate itself (0.07), not a %
+  const fees  = fSpot + fPut + fNo;
+  const payoff = S => (S - spot) + Math.max(Kp - S, 0) + (S < Kb ? N*(100-no) : -N*no) - prem - fees;
+  const Nmin = (100-no) > 0 ? Math.max(0, (spot + prem - Kp + fees)/(100 - no)) : Infinity;
+  const Sref = Math.max(Kb, Kp);
+  const Nmax = (no > 0 && Sref > spot + prem + fees) ? (Sref - spot - prem - fees)/no : 0;
+  const feasible = Nmax > Nmin && Nmax > 0 && capital > 0;
+  const minP = (Kp <= Kb)
+    ? Math.min(Kp - spot - prem + N*(100-no), Kb - spot - prem - N*no) - fees
+    : Kp - spot - prem - N*no - fees;
+  const bestP = Sref - spot + N*(100-no) - prem - fees;
+  return {capital, payoff, Nmin, Nmax, feasible, minP, minPct: capital>0 ? minP/capital*100 : NaN,
+          bestP, bestPct: capital>0 ? bestP/capital*100 : NaN, bestAt: Kb,
+          fees, fSpot, fPut, fNo};
+}
+function a1suggestN(spot, Kp, Kb, no, Nmin, Nmax){
+  if (!(Nmax > Nmin) || Nmax <= 0) return null;
+  let n = (Kp <= Kb) ? (Kb - Kp)/100 : Nmin;
+  n = Math.min(n, Nmax*0.999);
+  n = Math.max(n, Nmin);
+  return Math.round(n*10)/10;
+}
+
+/* ---------- live data ---------- */
+async function a1jget(url){
+  const r = await fetch(url, {headers:{'Origin':'null'}});
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+/* ----- Gold: live gold/oz from Deribit PAXG + embedded GLD put snapshot ----- */
+function a1goldGldSpot(){
+  const gld = a1num('gldSpot');
+  const oz = a1num('ozShare') || a1CUR.oz;
+  return gld > 0 ? gld : (a1paxgSpot ? a1paxgSpot*oz : a1GLD_SNAP_SPOT);
+}
+function a1buildGoldBooks(){
+  const gldSpot = a1goldGldSpot();
+  a1books = {};
+  a1GLD_PUTS.forEach(([K, bid, ask, oi])=>{
+    const scale = gldSpot / a1GLD_SNAP_SPOT;      // premium scales with live GLD price
+    a1books['GLD-DEC26-'+K+'-P'] = { bid: bid*scale, ask: ask*scale, askBase: ask*scale, askSnap: ask, index: gldSpot, oi };
+  });
+  return gldSpot;
+}
+function a1updateConv(){
+  const gld = a1num('gldSpot'), gc = a1num('gcSpot');
+  if (gld>0 && gc>0) $('ozShare').value = (gld/gc).toFixed(5);
+  a1CUR.oz = a1num('ozShare') || a1CUR.oz;
+  $('ozOut').textContent = a1CUR.oz ? a1CUR.oz.toFixed(4) : '?';
+  const hint = $('sink');
+  if (a1paxgSpot){
+    const est = a1paxgSpot*a1CUR.oz;
+    let msg = `Live check: PAXG $${a1fmt(a1paxgSpot,0)}/oz × ${a1CUR.oz.toFixed(4)} = $${a1fmt(est)} GLD`;
+    if (gld>0) msg += Math.abs(est-gld)/gld > 0.02 ? '  ⚠ differs from your GLD price' : '  ✓ matches';
+    hint.textContent = msg;
+  } else hint.textContent = 'PAXG pending…';
+}
+function a1fillGoldPutSel(){
+  const ps = $('putSel');
+  ps.innerHTML = '<option value="">— manual —</option>';
+  a1GLD_PUTS.forEach(([K, bid, ask, oi])=>{
+    const b = a1books['GLD-DEC26-'+K+'-P'];
+    if (!b) return;
+    const opt = document.createElement('option');
+    opt.value = 'GLD-DEC26-'+K+'-P';
+    opt.textContent = `K=$${K}  $${a1fmt(b.bid,2)}/$${a1fmt(b.ask,2)}  (OI ${oi})`;
+    ps.appendChild(opt);
+  });
+}
+function a1goldConvChanged(){
+  a1updateConv();
+  const gldSpot = a1buildGoldBooks();
+  if (!parseFloat($('spot').value)) $('spot').value = gldSpot.toFixed(2);
+  $('spotLive').textContent = a1paxgSpot ? `$${a1fmt(gldSpot)}  (PAXG $${a1fmt(a1paxgSpot,0)}/oz × ${a1CUR.oz})` : `$${a1fmt(gldSpot)} (snapshot)`;
+  $('dotSpot').className = 'dot ok';
+  a1fillGoldPutSel();
+  a1calc();
+}
+function a1parseGLDPaste(){
+  const t = $('gldPaste').value.trim();
+  if (!t) return;
+  try{
+    const j = JSON.parse(t);
+    let arr;
+    if (Array.isArray(j)) arr = j;
+    else if (j && j.data && Array.isArray(j.data.options))
+      // CBOE symbol = GLD + YYMMDD + C/P + strike*1000 (zero-padded 8), e.g. GLD261218P00205000 -> K=205
+      arr = j.data.options.map(o=>{
+        const m = (o.option||'').match(/^GLD(\d{6})([CP])(\d{8})$/);
+        if (!m) return null;
+        if (m[2] !== 'P') return null;            // puts only
+        if (!m[1].startsWith('2612')) return null; // Dec-2026 only
+        return [+m[3]/1000, o.bid, o.ask, o.open_interest];
+      }).filter(Boolean);
+    else throw new Error('unrecognized format');
+    if (!arr.length) throw new Error('no puts found');
+    a1GLD_PUTS = arr.map(r=>[+r[0], +r[1], +r[2], +r[3]||0]).sort((a,b)=>a[0]-b[0]);
+    $('sink').textContent = `✓ ${a1GLD_PUTS.length} puts loaded (K $${a1GLD_PUTS[0][0]}–$${a1GLD_PUTS[a1GLD_PUTS.length-1][0]})`;
+    $('sink').style.color = 'var(--ok)';
+    a1goldConvChanged();
+  }catch(e){
+    $('sink').textContent = '✗ could not parse: '+e.message;
+    $('sink').style.color = 'var(--bad)';
+  }
+}
+const a1BYBIT_API = 'https://api.bytick.com/v5';
+const a1BYBIT_DEC26 = 1798185600000; // 25 Dec 2026 08:00 UTC — options expiry (cash-settled USDT)
+async function a1loadSpotAndOptions(){
+  if (a1CUR.isGold) return a1loadGoldSpotAndOptions();
+  try{
+    // 1) list this coin's Dec-2026 puts (cash-settled USDT)
+    const inst = await a1jget(`${a1BYBIT_API}/market/instruments-info?category=option&baseCoin=${a1CUR.sym}`);
+    const puts = (inst.result?.list||[])
+      .filter(x => x.optionsType==='Put' && x.status==='Trading' && x.deliveryTime==a1BYBIT_DEC26)
+      .sort((a,b)=> parseInt(a.symbol.split('-')[2]) - parseInt(b.symbol.split('-')[2]));
+    const syms = puts.map(x=>x.symbol);
+    // 2) batch the live quotes (chunk to keep the URL short)
+    const tick = {};
+    for (let i=0;i<syms.length;i+=25){
+      const t = await a1jget(`${a1BYBIT_API}/market/tickers?category=option&symbol=${syms.slice(i,i+25).join(',')}`);
+      (t.result?.list||[]).forEach(x=>{ tick[x.symbol]=x; });
+    }
+    a1books = {};
+    let idx = null;
+    puts.forEach(o=>{
+      const t = tick[o.symbol];
+      const i = t ? (parseFloat(t.indexPrice) || parseFloat(t.underlyingPrice) || null) : null;
+      if (i) idx = i;
+      const bid = t && t.bid1Price ? parseFloat(t.bid1Price) : null;
+      const ask = t && t.ask1Price ? parseFloat(t.ask1Price) : null;
+      a1books[o.symbol] = {
+        bid, ask,
+        // premium per unit of underlying, so the sweep can scale it with the entry price
+        bidEth: (bid!=null && i) ? bid/i : null,
+        askEth: (ask!=null && i) ? ask/i : null,
+        mark: t && t.markPrice ? parseFloat(t.markPrice) : null,
+        index: i,
+        oi: t && t.openInterest ? parseFloat(t.openInterest) : null
+      };
+    });
+    if (idx){
+      $('spotLive').textContent = '$'+a1fmt(idx); $('dotSpot').className='dot ok';
+      if (!parseFloat($('spot').value)) $('spot').value = idx.toFixed(2);
+      $('spot').classList.remove('blank');
+    }
+    const ps = $('putSel');
+    ps.innerHTML = '<option value="">— manual —</option>';
+    puts.forEach(o=>{
+      const b = a1books[o.symbol];
+      const opt = document.createElement('option');
+      opt.value = o.symbol;
+      opt.textContent = `K=${o.symbol.split('-')[2]}  $${a1fmt(b.bid??NaN,0)}/$${a1fmt(b.ask??NaN,0)}  (OI ${b.oi?a1fmt(b.oi,0):'—'})`;
+      ps.appendChild(opt);
+    });
+  }catch(e){
+    $('spotLive').textContent = 'fetch failed (manual)'; $('dotSpot').className='dot';
+    return false;
+  }
+  return true;
+}
+async function a1loadGoldSpotAndOptions(){
+  try{
+    const b = await a1jget('https://www.deribit.com/api/v2/public/get_order_book?instrument_name=PAXG&count=1');
+    const r = b.result;
+    a1paxgSpot = r.last ?? r.index_price ?? null;
+  }catch(e){ a1paxgSpot = null; }
+  const oz = a1num('ozShare') || a1CUR.oz;
+  if (a1paxgSpot){
+    if (!a1num('gldSpot')) $('gldSpot').value = (a1paxgSpot*oz).toFixed(2);
+    if (!a1num('gcSpot')) $('gcSpot').value = a1paxgSpot.toFixed(2);
+  }
+  const gldSpot = a1buildGoldBooks();
+  $('spotLive').textContent = a1paxgSpot ? `$${a1fmt(gldSpot)}  (PAXG $${a1fmt(a1paxgSpot,0)}/oz × ${oz})` : `$${a1fmt(gldSpot)} (snapshot)`;
+  $('dotSpot').className = 'dot ok';
+  if (!parseFloat($('spot').value)) $('spot').value = gldSpot.toFixed(2);
+  $('spot').classList.remove('blank');
+  a1fillGoldPutSel();
+  a1updateConv();
+  return !!a1paxgSpot;
+}
+async function a1loadPolymarket(){
+  try{
+    let ev;
+    if (a1CUR.isGold){
+      const evs = await a1jget(`https://gamma-api.polymarket.com/events?slug=${a1CUR.slug}`);
+      ev = (Array.isArray(evs) ? evs : [evs]).find(e=>e.slug===a1CUR.slug);
+    } else {
+      const evs = await a1jget('https://gamma-api.polymarket.com/events?limit=100&closed=false&order=volume24hr&ascending=false&tag_slug=crypto');
+      ev = evs.find(e => a1CUR.ev.test(e.title||''));
+    }
+    if (!ev) throw new Error('event not found');
+    const byK = {};
+    ev.markets.filter(m => /reach \$|hit \(HIGH\)/i.test(m.question||'')).forEach(m=>{
+      const kOz = parseFloat(m.question.match(/\$([\d,]+)/)[1].replace(/,/g,''));
+      if (!byK[kOz] || (m.volume24hr||0) > (byK[kOz].volume24hr||0)) byK[kOz] = m;
+    });
+    const oz = a1num('ozShare') || a1CUR.oz;
+    a1noMarketsRaw = Object.values(byK).map(m=>{
+      const kOz = parseFloat(m.question.match(/\$([\d,]+)/)[1].replace(/,/g,''));
+      let yes = NaN;
+      try{
+        const prices = typeof m.outcomePrices === 'string' ? JSON.parse(m.outcomePrices) : m.outcomePrices;
+        yes = parseFloat(prices[0]);
+      }catch(e){}
+      const no = isFinite(yes) ? 100*(1-yes) : NaN;
+      return {kOz, no};
+    }).filter(x => isFinite(x.no) && x.no >= 50 && x.no <= 90).sort((a,b)=>a.kOz-b.kOz);
+    a1noMarkets = a1noMarketsRaw.map(x => ({ k: a1CUR.isGold ? x.kOz*oz : x.kOz, kDisplay: x.kOz, no: x.no }));
+    $('pmLive').textContent = a1noMarkets.length+' markets'; $('dotPM').className='dot ok';
+  }catch(e){
+    $('pmLive').textContent = 'fetch failed (manual)'; $('dotPM').className='dot';
+    return false;
+  }
+  return true;
+}
+
+/* ---------- selection ---------- */
+function a1putFromSel(){
+  const v = $('putSel').value;
+  $('putManualRow').style.display = v ? 'none' : 'flex';
+  if (v && a1books[v]){
+    const Kp = parseFloat(v.split('-')[2]);   // 'GLD-DEC26-480-P' or 'ETH-25DEC26-2500-P' -> 480 / 2500
+    $('putK').value = Kp;
+    $('putAsk').value = (a1books[v].ask ?? '').toString();
+    $('putAsk').classList.toggle('blank', !a1books[v].ask);
+    $('putK').classList.remove('blank');
+  }
+  a1calc();
+}
+function a1selectBet(k, no, n){
+  $('betK').value = k; $('noRate').value = no.toFixed(2);
+  $('betK').classList.remove('blank'); $('noRate').classList.remove('blank');
+  $('betManualRow').style.display = 'none';
+  if (n != null){ $('betN').value = n; $('betN').classList.remove('blank'); }
+  a1calc();
+}
+function a1autoN(){
+  const spot = a1num('spot'), Kp = a1num('putK'), prem = a1num('putAsk'), Kb = a1num('betK'), no = a1num('noRate');
+  const hint = $('sink');
+  if (!(spot>0 && Kp>0 && prem>0 && Kb>0 && no>0 && no<100)){
+    hint.textContent = '⚠ need spot, put (K + premium) and NO strike (K + price) first.';
+    hint.style.color = 'var(--warn)'; return;
+  }
+  const a = a1analyze(spot, Kp, prem, Kb, no, 0);
+  const n = a1suggestN(spot, Kp, Kb, no, a.Nmin, a.Nmax);
+  if (n == null){
+    hint.textContent = `⚠ no N makes the return positive at all prices for this put + NO strike (need N > ${a1fmt(a.Nmin,1)} and N < ${a1fmt(a.Nmax,1)} — empty range). Pick a different NO strike (see table).`;
+    hint.style.color = 'var(--warn)'; return;
+  }
+  $('betN').value = n; $('betN').classList.remove('blank');
+  hint.style.color = '';
+  hint.textContent = `auto = balanced N${Kp<=Kb?` = (Kb−Kp)/100 = (${Kb.toLocaleString()}−${Kp.toLocaleString()})/100`:''} → worst case is positive at every price.`;
+  a1calc();
+}
+
+/* ---------- NO table ---------- */
+/* ---------- NO price overrides (manual — live quote stale/thin) ---------- */
+let a1noOverrides = {};  // kDisplay -> NO price in cents (per asset; cleared on asset switch)
+let a1noEditState = null; // {kDisplay} while an inline editor is open — protects it from re-renders
+function a1noPriceFor(m){ return a1noOverrides[m.kDisplay] != null ? a1noOverrides[m.kDisplay] : m.no; }
+function a1noMarketsEff(){ return a1noMarkets.map(m => a1noOverrides[m.kDisplay]!=null ? Object.assign({}, m, {no: a1noOverrides[m.kDisplay]}) : m); }
+function a1setNoOverride(kDisplay, price){
+  if (price == null || !(price > 0 && price < 100)) delete a1noOverrides[kDisplay];
+  else a1noOverrides[kDisplay] = price;
+  const m = a1noMarkets.find(x => x.kDisplay === kDisplay);
+  if (m && a1num('betK') === m.k){
+    $('noRate').value = a1noPriceFor(m).toFixed(2);
+    $('noRate').classList.remove('blank');
+  }
+  a1renderSweep(); a1calc();
+}
+function a1resetNoPrice(e, kDisplay){ e.stopPropagation(); a1setNoOverride(kDisplay, null); }
+function a1clearAllNoOverrides(){ a1noOverrides = {}; a1renderSweep(); a1calc(); }
+function a1updateOverrideBadge(){
+  const n = Object.keys(a1noOverrides).length;
+  const b = $('sink');
+  if (n){
+    b.style.display = 'inline';
+    b.innerHTML = ` · <b style="color:var(--accent)">${n} NO override${n>1?'s':''} active</b> <a href="#" style="color:var(--warn)" onclick="a1clearAllNoOverrides();return false">clear all</a>`;
+  } else b.style.display = 'none';
+}
+function a1editNoPrice(e, kDisplay){
+  e.stopPropagation();
+  const m = a1noMarkets.find(x => x.kDisplay === kDisplay);
+  if (!m) return;
+  const td = e.target.closest('td');
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.step = '0.01'; inp.min = '0.01'; inp.max = '99.99';
+  inp.className = 'noEditInput';
+  inp.value = a1noPriceFor(m);
+  td.innerHTML = ''; td.appendChild(inp);
+  a1noEditState = {kDisplay};
+  inp.focus(); inp.select();
+  let done = false;
+  const commit = save => {
+    if (done) return; done = true;
+    a1noEditState = null;
+    if (save){
+      const v = parseFloat(inp.value);
+      a1setNoOverride(kDisplay, isFinite(v) ? v : null);
+    } else a1renderTable();
+  };
+  inp.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') commit(true);
+    else if (ev.key === 'Escape') commit(false);
+  });
+  inp.addEventListener('blur', () => commit(true));
+}
+
+function a1renderTable(){
+  if (a1noEditState) return;  // don't clobber an open inline editor
+  const spot = a1num('spot'), Kp = a1num('putK'), prem = a1num('putAsk');
+  const days = a1num('days') || 1;
+  const tb = $('noTable').querySelector('tbody');
+  tb.innerHTML = '';
+  a1updateOverrideBadge();
+  if (!(spot>0 && Kp>0 && prem>0) || !a1noMarkets.length) return;
+  let best = null;
+  const rows = a1noMarkets.map(m=>{
+    const no = a1noPriceFor(m);
+    const a = a1analyze(spot, Kp, prem, m.k, no, 0);
+    const n = a1suggestN(spot, Kp, m.k, no, a.Nmin, a.Nmax);
+    const a2 = n != null ? a1analyze(spot, Kp, prem, m.k, no, n) : null;
+    const apy = a2 ? a2.minPct*365/days : NaN;
+    if (a2 && a2.feasible && (best==null || apy > best.apy)) best = {m, n, apy};
+    return {m, no, a, n, a2, apy};
+  });
+  const selK = a1num('betK');
+  rows.forEach(r=>{
+    const tr = document.createElement('tr');
+    const ok = r.a2 && r.a2.feasible;
+    const ov = a1noOverrides[r.m.kDisplay] != null;
+    tr.className = (ok?'feas':'infeas') + (r.m.k===selK?' sel':'') + (best && best.m.k===r.m.k?' best':'');
+    const strikeTxt = a1CUR.isGold ? `$${r.m.kDisplay.toLocaleString()} <span style="color:var(--muted)">($${a1fmt(r.m.k,0)} GLD)</span>` : `$${r.m.kDisplay.toLocaleString()}`;
+    tr.innerHTML = `<td>${strikeTxt}</td>
+      <td><span class="${ov?'noOverride':''}">${a1fmt(r.no,1)}c</span><button class="noEditBtn" onclick="a1editNoPrice(event, ${r.m.kDisplay})" title="${ov?'Change the overridden NO price':'Edit NO price (live quote may be stale/thin)'}">✎</button>${ov?`<button class="noEditBtn" onclick="a1resetNoPrice(event, ${r.m.kDisplay})" title="Reset to live price">×</button>`:''}</td>
+      <td>${ok?`> ${a1fmt(r.a.Nmin,1)} and < ${a1fmt(r.a.Nmax,1)}`:'—'}</td>
+      <td>${r.n ?? '—'}</td>
+      <td>${r.a2?a1fmt(a1money1k(r.a2, r.a2.minP),2):'—'}</td>
+      <td>${r.a2?a1fmt(r.a2.minPct,2)+'%':'—'}</td>
+      <td>${r.a2?a1fmt(a1money1k(r.a2, r.a2.bestP),2):'—'}</td>
+      <td>${r.a2?a1fmt(r.a2.bestPct,2)+'%':'—'}</td>
+      <td>${ok?a1fmt(r.apy,1)+'%':'—'}</td>`;
+    if (ok) tr.onclick = () => a1selectBet(r.m.k, a1noPriceFor(r.m), r.n);
+    tb.appendChild(tr);
+  });
+}
+
+/* ---------- main a1calc ---------- */
+function a1calc(){
+  const spot = a1num('spot'), Kp = a1num('putK'), prem = a1num('putAsk');
+  const Kb = a1num('betK'), no = a1num('noRate'), N = a1num('betN');
+  const days = a1num('days') || 1;
+  const ready = spot>0 && Kp>0 && prem>0 && Kb>0 && no>0 && no<100 && N>=0;
+
+  if (!ready){
+    ['oCap','oMin','oMinPct','oMax','oMaxPct','oApy','oFees'].forEach(id => $(id).textContent = '—');
+    $('oVerdict').style.display = 'none';
+    a1renderTable(); a1drawChart(null); return;
+  }
+  const a = a1analyze(spot, Kp, prem, Kb, no, N);
+  const apy = a.minPct*365/days;
+  const maxApy = a.bestPct*365/days;
+  $('oCap').textContent = '$'+a1fmt(a.capital)+'  (per 1 '+a1CUR.sym+')';
+  const sgn = a.minP>=0 ? '+' : '−';
+  $('oMin').textContent = sgn+'$'+a1fmt(Math.abs(a1money1k(a, a.minP)),2);
+  $('oMin').className = a.minP>=0?'pos':'neg';
+  $('oMinPct').textContent = (a.minP>=0?'+':'−')+a1fmt(Math.abs(a.minPct))+'%';
+  $('oMinPct').className = a.minP>=0?'pos':'neg';
+  $('oMax').textContent = (a.bestP>=0?'+':'−')+'$'+a1fmt(Math.abs(a1money1k(a, a.bestP)),2);
+  $('oMax').className = a.bestP>=0?'pos':'neg';
+  $('oMaxPct').textContent = (a.bestP>=0?'+':'−')+a1fmt(Math.abs(a.bestPct))+'%';
+  $('oMaxPct').className = a.bestP>=0?'pos':'neg';
+  $('oApy').textContent = (a.minP>=0?'+':'−')+a1fmt(Math.abs(apy))+'%';
+  $('oApy').className = a.minP>=0?'pos':'neg';
+  $('oFees').textContent = '−$'+a1fmt(a1money1k(a, a.fees),2)+'  (spot −$'+a1fmt(a1money1k(a,a.fSpot),2)+' · put −$'+a1fmt(a1money1k(a,a.fPut),2)+' · NO −$'+a1fmt(a1money1k(a,a.fNo),2)+')';
+
+  const v = $('oVerdict');
+  v.style.display = 'block';
+  if (a.feasible && a.minP > 0){
+    v.className = 'verdict ok';
+    v.textContent = `✓ positive at ALL prices — worst case +$${a1fmt(a1money1k(a,a.minP),2)}/$1k (+${a1fmt(a.minPct)}%) = ${a1fmt(apy)}% APY · best case +$${a1fmt(a1money1k(a,a.bestP),2)}/$1k (+${a1fmt(a.bestPct)}%) = ${a1fmt(maxApy)}% APY over ${days} days`;
+  } else {
+    v.className = 'verdict bad';
+    v.textContent = `⚠ at N=${N}, the return goes negative for some prices (worst case −$${a1fmt(Math.abs(a1money1k(a,a.minP)),2)}/$1k). Safe range: N > ${a1fmt(a.Nmin,1)} and N < ${a1fmt(a.Nmax,1)}.`;
+  }
+
+  // bounds panel
+  const b = $('nBounds');
+  b.innerHTML = `safe range: <b>${Kp<=Kb?a1fmt(a.Nmin,1):'0'} &lt; N &lt; ${a1fmt(a.Nmax,1)}</b> · balanced N = ${a1fmt(Math.max(0,(Kb-Kp)/100),1)} <span style="color:var(--muted)">(why: Info tab)</span>`;
+  a1renderTable();
+  a1drawChart(a);
+}
+
+/* ---------- chart ---------- */
+function a1drawChart(a){
+  const cv = $('chart'), ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height, L=70, R=20, T=20, B=40;
+  ctx.clearRect(0,0,W,H);
+  if (!a){
+    ctx.fillStyle='#8b949e'; ctx.font='14px sans-serif';
+    ctx.fillText('Fill in spot, put and NO bet to draw the payoff curve.', L, H/2); return;
+  }
+  const spot = a1num('spot'), Kp = a1num('putK'), Kb = a1num('betK');
+  const xMax = Math.max(Kb, Kp, spot)*1.25;
+  const xMin = Math.max(0, Math.min(spot, Kp, Kb)*0.5);
+  const sfC = a1sfOf(a);   // scale payoff to per-$1,000 so axis/curve/label all match
+  const xs=[], ys=[];
+  let minI = 0;
+  for (let n=0;n<=500;n++){
+    const S = xMin+(xMax-xMin)*n/500;
+    xs.push(S); ys.push(a.payoff(S)*sfC);
+    if (ys[n] < ys[minI]) minI = n;
+  }
+  const yMin = Math.min(...ys, 0), yMax = Math.max(...ys, 0);
+  const pad=(yMax-yMin)*0.08 || 1;
+  const X = s => L + (s-xMin)/(xMax-xMin)*(W-L-R);
+  const Y = v => T + (yMax+pad - v)/(yMax+pad-yMin+pad)*(H-T-B);
+  ctx.strokeStyle='#2d3644'; ctx.lineWidth=1; ctx.font='11px sans-serif'; ctx.fillStyle='#8b949e';
+  for (let g=0; g<=5; g++){
+    const v = yMin+pad + (yMax-yMin+2*pad)*g/5;
+    ctx.beginPath(); ctx.moveTo(L, Y(v)); ctx.lineTo(W-R, Y(v)); ctx.stroke();
+    ctx.fillText(a1fmt(v,0), 8, Y(v)+4);
+  }
+  for (let g=0; g<=6; g++){
+    const s = xMin + (xMax-xMin)*g/6;
+    ctx.beginPath(); ctx.moveTo(X(s), T); ctx.lineTo(X(s), H-B); ctx.stroke();
+    ctx.fillText(a1fmt(s,0), X(s)-14, H-B+16);
+  }
+  ctx.strokeStyle='#8b98a9'; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(L, Y(0)); ctx.lineTo(W-R, Y(0)); ctx.stroke();
+  ctx.setLineDash([]);
+  [[Kp,'put K','#3fb950'],[Kb,'NO K','#4da3ff'],[spot,'spot','#8b98a9']].forEach(([s,lab,col])=>{
+    if (s<xMin||s>xMax) return;
+    ctx.strokeStyle=col; ctx.setLineDash([3,4]); ctx.globalAlpha=.7;
+    ctx.beginPath(); ctx.moveTo(X(s), T); ctx.lineTo(X(s), H-B); ctx.stroke();
+    ctx.globalAlpha=1; ctx.fillStyle=col; ctx.fillText(lab, X(s)+4, T+12);
+  });
+  ctx.setLineDash([]);
+  ctx.lineWidth=2.5;
+  for (let n=1;n<xs.length;n++){
+    const above = Math.max(ys[n],ys[n-1]) >= 0;
+    ctx.strokeStyle = above ? '#3fb950' : '#f85149';
+    ctx.beginPath(); ctx.moveTo(X(xs[n-1]), Y(ys[n-1])); ctx.lineTo(X(xs[n]), Y(ys[n])); ctx.stroke();
+  }
+  // mark the worst case
+  ctx.fillStyle='#f0f6fc';
+  ctx.beginPath(); ctx.arc(X(xs[minI]), Y(ys[minI]), 5, 0, 7); ctx.fill();
+  ctx.strokeStyle='#f85149'; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle='#f0f6fc'; ctx.font='bold 12px sans-serif';
+  ctx.fillText(`worst case: ${a1CUR.sym} $${a1fmt(xs[minI],0)} → ${ys[minI]>=0?'+':'−'}$${a1fmt(Math.abs(ys[minI]),0)}/$1k`, X(xs[minI])+10, Y(ys[minI])-10);
+}
+
+/* put-symbol test: Bybit 'ETH-25DEC26-2500-P-USDT' (type at index 3) or GLD 'GLD-DEC26-480-P' (type at end) */
+function a1isPutName(n){ const p = n.split('-'); return p[3]==='P' || p[p.length-1]==='P'; }
+function a1kOf(n){ return parseFloat(n.split('-')[2]); }
+/* ---------- entry sweep (per-asset range) ---------- */
+function a1bestComboAt(s, bk, nms, A){
+  let best = null;
+  for (const [name, b] of Object.entries(bk)){
+    if (!a1isPutName(name) || !b.ask) continue;
+    const Kp = parseFloat(name.split('-')[2]);  // 'GLD-DEC26-480-P' -> 480, 'ETH-25DEC26-2500-P' -> 2500
+    if (Kp > s + A.putCap) continue;
+    const prem = A.sym==='GLD' ? b.ask : (b.askEth ?? b.ask/(b.index||s)) * s;  // GLD premium already USD
+    for (const m of nms){
+      if (m.k <= Kp) continue;
+      const a0 = a1analyze(s, Kp, prem, m.k, m.no, 0);
+      if (!(a0.Nmax > a0.Nmin && a0.Nmax > 0)) continue;
+      const N = Math.min(Math.max((m.k - Kp)/100, a0.Nmin), a0.Nmax*0.999);
+      const a = a1analyze(s, Kp, prem, m.k, m.no, N);
+      if (a.minP <= 0) continue;
+      const apy = a.minPct*365/(a1num('days')||1);
+      if (!best || apy > best.apy) best = {Kp, prem, m, N, a, apy};
+    }
+  }
+  return best;
+}
+function a1bestCombo(s){ return a1bestComboAt(s, a1books, a1noMarketsEff(), a1CUR); }
+/* Sweep range anchored to the LIVE spot: lower bound = spot rounded DOWN to the
+   nearest step (you can't buy at a price already passed), then 12 rows upward.
+   e.g. spot 2550 -> 2500,2600,… ; spot 2480 -> 2400,2500,2600,… */
+function a1sweepBounds(){
+  const step = a1CUR.sweep[2];
+  const spot = a1num('spot');
+  const lo = spot > 0 ? Math.floor(spot/step)*step : a1CUR.sweep[0];
+  const hi = lo + 11*step;
+  return [lo, hi, step];
+}
+function a1renderSweep(){
+  if (a1noEditState) return;  // don't clobber an open inline editor
+  const tb = $('sweepTable').querySelector('tbody');
+  tb.innerHTML = '';
+  const days = a1num('days') || 1;
+  const [lo, hi, step] = a1sweepBounds();
+  $('sweepTitle').innerHTML = `Entry sweep — best always-positive combo if <span class="sym">${a1CUR.sym}</span> is at $${lo.toLocaleString()}–$${hi.toLocaleString()} today`;
+  $('sink').innerHTML = (a1CUR.sym==='GLD'
+    ? `Premium = GLD put ask (USD, embedded CBOE snapshot — refresh via the paste box), NO = live Polymarket GC (50–90c only). `
+    : `Premium = live Bybit ask (USD, cash-settled USDT), NO = live Polymarket (50–90c only). `)
+    + `<b>◀ now</b> = current entry price (live spot rounded down). <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L is <b>net of trading fees</b>. INFEASIBLE = no N keeps the return positive at every price.`;
+  const spot = a1num('spot');
+  const below = Math.min(2, Math.floor(lo/step));  // up to 2 rows below the start, not below 0
+  const rows = [];
+  for (let i = below; i >= 1; i--) rows.push(lo - i*step);  // strictly-below rows only (lo comes from the main loop)
+  for (let s = lo; s <= hi; s += step) rows.push(s);
+  const nowS = lo;  // round-down = the current entry price (your "now")
+  for (const s of rows){
+    const b = a1bestCombo(s);
+    const tr = document.createElement('tr');
+    if (s === nowS) tr.className = 'now';
+    if (b){
+      const maxApy = b.a.bestPct*365/days;
+      const ov = a1noOverrides[b.m.kDisplay] != null;
+      tr.innerHTML = `<td>$${s.toLocaleString()}</td><td>$${b.Kp.toLocaleString()}</td><td>$${a1fmt(b.prem,0)}</td>
+        <td>$${b.m.k.toLocaleString()}</td><td><span class="${ov?'noOverride':''}">${a1fmt(b.m.no,1)}c</span><button class="noEditBtn" onclick="a1editNoPrice(event, ${b.m.kDisplay})" title="Edit NO price (live quote may be stale/thin)">✎</button>${ov?`<button class="noEditBtn" onclick="a1resetNoPrice(event, ${b.m.kDisplay})" title="Reset to live price">×</button>`:''}</td><td>${a1fmt(b.N,1)}</td>
+        <td class="pos">+$${a1fmt(a1money1k(b.a, b.a.minP),2)}</td>
+        <td class="pos pct">+${a1fmt(b.a.minPct,2)}%</td><td class="pos">+$${a1fmt(a1money1k(b.a, b.a.bestP),2)}</td>
+        <td class="pos">+${a1fmt(b.a.bestPct,2)}%</td><td class="pos">${a1fmt(b.apy,2)}%</td>`;
+    } else {
+      tr.innerHTML = `<td>$${s.toLocaleString()}</td><td colspan="10" style="color:var(--warn)">INFEASIBLE — put premium too big vs NO strike spacing</td>`;
+    }
+    tb.appendChild(tr);
+  }
+}
+
+/* ---------- asset toggle ---------- */
+function a1switchAsset(sym){
+  if (sym === a1CUR.sym) return;
+  a1CUR = a1ASSETS[sym];
+  $('btnETH').className = 'assetBtn' + (sym==='ETH' ? ' on' : '');
+  $('btnBTC').className = 'assetBtn' + (sym==='BTC' ? ' on' : '');
+  $('btnGOLD').className = 'assetBtn' + (sym==='GLD' ? ' on' : '');
+  $('goldConvCard').style.display = (sym==='GLD') ? 'block' : 'none';
+  $('assetTag').textContent = '(' + sym + ')';
+  document.title = 'Alpha Leak — Arbbet (' + sym + ')';
+  document.querySelectorAll('#paneA1 .sym').forEach(el => el.textContent = sym);
+  $('sweepTitle').innerHTML = `Entry sweep — best always-positive combo if <span class="sym">${sym}</span> is at … today (loading)`;
+  $('sink').innerHTML = sym==='GLD'
+    ? `Premium = GLD put ask (USD, embedded CBOE snapshot — refresh via the paste box), NO = live Polymarket GC (50–90c only). <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L shown <b>per $1,000 capital</b>. INFEASIBLE = no N keeps the return positive at every price.`
+    : `Premium = live Bybit ask (USD, cash-settled USDT), NO = live Polymarket (50–90c only). <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L shown <b>per $1,000 capital</b>. INFEASIBLE = no N keeps the return positive at every price.`;
+  // reset manual inputs — they belong to the other asset
+  a1noOverrides = {};
+  a1noEditState = null;
+  ['spot','putK','putAsk','betK','noRate','betN'].forEach(id => { $(id).value = ''; $(id).classList.add('blank'); });
+  $('putSel').value = '';
+  $('putManualRow').style.display = 'flex';
+  $('betManualRow').style.display = 'none';
+  $('spotLive').textContent = 'fetching…'; $('dotSpot').className = 'dot';
+  $('pmLive').textContent = 'fetching…'; $('dotPM').className = 'dot';
+  a1calc();
+  a1loadAll();
+}
+
+/* ---------- init ---------- */
+async function a1loadAll(){
+  $('stamp').textContent = 'fetching…'; $('stamp').style.color='';
+  $('btnRefresh').classList.remove('bad');
+  $('days').value = Math.max(0, Math.round((a1SETTLE - Date.now())/86400000));
+  const [okS, okP] = await Promise.all([a1loadSpotAndOptions(), a1loadPolymarket()]);
+  // default: best always-positive combo at live spot (falls back to nearest put)
+  const sp = a1num('spot');
+  const a1kOf = n => parseFloat(n.split('-')[2]);  // 'GLD-DEC26-480-P' -> 480, 'ETH-25DEC26-2500-P' -> 2500
+  if (sp && Object.keys(a1books).length){
+    const b = a1bestCombo(sp);
+    if (b){
+      const name = Object.keys(a1books).find(n => a1isPutName(n) && a1kOf(n) === b.Kp);
+      if (name){ $('putSel').value = name; a1putFromSel(); }
+      a1selectBet(b.m.k, b.m.no, b.N);
+    } else if (!$('putSel').value){
+      const names = Object.keys(a1books).filter(n=>a1isPutName(n));
+      const below = names.map(n=>({n, k:a1kOf(n)}))
+                         .filter(x=>x.k<=sp).sort((a,b2)=>b2.k-a.k)[0]
+                    ?? names.map(n=>({n, k:a1kOf(n)})).sort((a,b2)=>a.k-b2.k)[0];
+      if (below){ $('putSel').value = below.n; a1putFromSel(); }
+    }
+  }
+  a1renderSweep();
+  if (okS && okP){
+    $('stamp').textContent = 'updated ' + new Date().toLocaleTimeString();
+  } else {
+    $('stamp').textContent = '⚠ fetch failed — click ↻ Refresh to retry';
+    $('stamp').style.color = 'var(--warn)';
+    $('btnRefresh').classList.add('bad');
+  }
+  a1calc();
+}
+
+/* ---------- all-asset feasibility summary + refresh ---------- */
+async function a1fetchAssetData(key){
+  const A = a1ASSETS[key];
+  const out = {key, spot:null, a1books:{}, a1noMarkets:[], err:null};
+  const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  try{
+    if (key === 'GOLD'){
+      let paxg = null;
+      try{
+        const b = await a1jget('https://www.deribit.com/api/v2/public/get_order_book?instrument_name=PAXG&count=1');
+        paxg = b.result.last ?? b.result.index_price ?? null;
+      }catch(e){}
+      const oz = a1num('ozShare') || A.oz;
+      out.spot = paxg ? paxg*oz : a1GLD_SNAP_SPOT;
+      const scale = out.spot / a1GLD_SNAP_SPOT;
+      a1GLD_PUTS.forEach(([K, bid, ask, oi])=>{
+        out.a1books['GLD-DEC26-'+K+'-P'] = {bid:bid*scale, ask:ask*scale, index:out.spot, oi};
+      });
+    } else {
+      // Bybit: list Dec-2026 puts, then batch the live USDT quotes
+      const inst = await a1jget(`${a1BYBIT_API}/market/instruments-info?category=option&baseCoin=${A.sym}`);
+      const puts = (inst.result?.list||[])
+        .filter(x => x.optionsType==='Put' && x.status==='Trading' && x.deliveryTime==a1BYBIT_DEC26)
+        .sort((a,b)=> parseInt(a.symbol.split('-')[2]) - parseInt(b.symbol.split('-')[2]));
+      const syms = puts.map(x=>x.symbol);
+      const tick = {};
+      for (let i=0;i<syms.length;i+=25){
+        const t = await a1jget(`${a1BYBIT_API}/market/tickers?category=option&symbol=${syms.slice(i,i+25).join(',')}`);
+        (t.result?.list||[]).forEach(x=>{ tick[x.symbol]=x; });
+      }
+      for (const o of puts){
+        const t = tick[o.symbol];
+        const idx = t ? (parseFloat(t.indexPrice) || parseFloat(t.underlyingPrice) || null) : null;
+        const bid = t && t.bid1Price ? parseFloat(t.bid1Price) : null;
+        const ask = t && t.ask1Price ? parseFloat(t.ask1Price) : null;
+        out.a1books[o.symbol] = {
+          bid, ask,
+          askEth: (ask!=null && idx) ? ask/idx : null,
+          index: idx
+        };
+        if (!out.spot && idx) out.spot = idx;
+      }
+    }
+    let ev;
+    if (key === 'GOLD'){
+      const evs = await a1jget(`https://gamma-api.polymarket.com/events?slug=${A.slug}`);
+      ev = (Array.isArray(evs) ? evs : [evs]).find(e=>e.slug===A.slug);
+    } else {
+      const evs = await a1jget('https://gamma-api.polymarket.com/events?limit=100&closed=false&order=volume24hr&ascending=false&tag_slug=crypto');
+      ev = evs.find(e => A.ev.test(e.title||''));
+    }
+    if (!ev) throw new Error('event not found');
+    const byK = {};
+    ev.markets.filter(m => /reach \$|hit \(HIGH\)/i.test(m.question||'')).forEach(m=>{
+      const kOz = parseFloat(m.question.match(/\$([\d,]+)/)[1].replace(/,/g,''));
+      if (!byK[kOz] || (m.volume24hr||0) > (byK[kOz].volume24hr||0)) byK[kOz] = m;
+    });
+    const oz = key==='GOLD' ? (a1num('ozShare') || A.oz) : 1;
+    const raw = Object.values(byK).map(m=>{
+      const kOz = parseFloat(m.question.match(/\$([\d,]+)/)[1].replace(/,/g,''));
+      let yes = NaN;
+      try{
+        const prices = typeof m.outcomePrices === 'string' ? JSON.parse(m.outcomePrices) : m.outcomePrices;
+        yes = parseFloat(prices[0]);
+      }catch(e){}
+      const no = isFinite(yes) ? 100*(1-yes) : NaN;
+      return {kOz, no};
+    }).filter(x => isFinite(x.no) && x.no >= 50 && x.no <= 90).sort((a,b)=>a.kOz-b.kOz);
+    out.a1noMarkets = raw.map(x => ({ k: key==='GOLD' ? x.kOz*oz : x.kOz, kDisplay: x.kOz, no: x.no }));
+  }catch(e){ out.err = e.message; }
+  return out;
+}
+async function a1renderSummary(){
+  $('sumStamp').textContent = 'computing…';
+  await Promise.all(['ETH','BTC','GOLD'].map(async key=>{
+    const tr = $('sum'+key);
+    const A = a1ASSETS[key];
+    const d = await a1fetchAssetData(key);
+    const best = (d.spot && Object.keys(d.a1books).length && d.a1noMarkets.length)
+      ? a1bestComboAt(d.spot, d.a1books, d.a1noMarkets, A) : null;
+    let cells;
+    if (best){
+      cells = `<td>$${a1fmt(d.spot,0)}</td><td class="pos">✓ FEASIBLE</td>
+        <td>$${best.Kp.toLocaleString()}</td><td>$${best.m.kDisplay.toLocaleString()}</td><td>${a1fmt(best.m.no,1)}c</td><td>${a1fmt(best.N,1)}</td>
+        <td class="pos">+$${a1fmt(a1money1k(best.a, best.a.minP),2)}</td><td class="pos pct">+${a1fmt(best.a.minPct,2)}%</td>
+        <td class="pos">+$${a1fmt(a1money1k(best.a, best.a.bestP),2)}</td><td class="pos pct">+${a1fmt(best.a.bestPct,2)}%</td><td class="pos">${a1fmt(best.apy,2)}%</td>`;
+    } else if (d.err && !d.spot){
+      cells = `<td colspan="11" style="color:var(--warn)">fetch failed (${d.err}) — click ↻ Refresh</td>`;
+    } else {
+      cells = `<td>$${d.spot?a1fmt(d.spot,0):'—'}</td><td class="neg">✗ INFEASIBLE</td>
+        <td colspan="9" style="color:var(--muted)">no N keeps the return positive at every price (put premium too big vs NO strike spacing)</td>`;
+    }
+    tr.innerHTML = `<td>${key==='GOLD'?'GOLD (GLD)':key}</td>${cells}`;
+    tr.onclick = () => a1switchAsset(key);
+  }));
+  $('sumStamp').textContent = 'updated ' + new Date().toLocaleTimeString();
+}
+let a1refreshing = false;
+async function a1refreshAll(){
+  if (a1refreshing) return;
+  a1refreshing = true;
+  const b = $('btnRefresh');
+  b.disabled = true; b.textContent = '↻ Refreshing…';
+  await Promise.all([a1loadAll(), a1renderSummary()]);
+  b.disabled = false; b.textContent = '↻ Refresh data';
+  a1refreshing = false;
+}
+a1calc();
+a1loadAll();
+a1renderSummary();
+
+</script>
+<script>
+/* ================= EP2 — Cash & Carry (spot + 1x short delivery) ================= */
+
+const ccDAPI = 'https://dapi.binance.com/dapi/v1';
+const ccSPOT = 'https://api.binance.com/api/v3';
+const ccASSETS = {
+  BTC: { sym:'BTC', spotSym:'BTCUSDT', cccontracts:['BTCUSD_260925','BTCUSD_261225'] },
+  ETH: { sym:'ETH', spotSym:'ETHUSDT', cccontracts:['ETHUSD_260925','ETHUSD_261225'] },
+};
+let ccCUR = ccASSETS.BTC;
+let cccontracts = [];   // {sym, label, expiry (ms), days, price, oi}
+let ccccOverrides = {}; // sym -> price override
+let ccccEditState = null;
+
+function ccnum(id){ const v = parseFloat($(id).value); return isFinite(v) ? v : 0; }
+function ccfmt(v, d=2){ return isFinite(v) ? v.toLocaleString(undefined,{minimumFractionDigits:d, maximumFractionDigits:d}) : '—'; }
+/* Per-$1,000 scaling: all dollar figures shown per $1,000 of capital.
+   Return % and APY are ratios — unchanged at any size. */
+function ccsfOf(capital){ return capital > 0 ? 1000/capital : 1; }
+function ccmoney1k(capital, v){ return capital > 0 ? v*1000/capital : v; }
+
+async function ccjget(url){
+  const r = await fetch(url, {headers:{'Origin':'null'}});
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+/* ---------- live data ---------- */
+async function ccloadCC(){
+  try{
+    const [info, spotT] = await Promise.all([
+      ccjget(`${ccDAPI}/exchangeInfo`),
+      ccjget(`${ccSPOT}/ticker/price?symbol=${ccCUR.spotSym}`),
+    ]);
+    const spot = parseFloat(spotT.price);
+    const now = Date.now();
+    const list = info.symbols.filter(s => ccCUR.cccontracts.includes(s.symbol) && s.contractStatus === 'TRADING');
+    const tick = {};
+    // COIN-M rejects comma-separated symbols on ticker/24hr — fetch one at a time
+    for (const s of list){
+      try{
+        const t = await ccjget(`${ccDAPI}/ticker/24hr?symbol=${s.symbol}`);
+        (Array.isArray(t)?t:[t]).forEach(x=>{ tick[x.symbol]=x; });
+      }catch(e){}
+    }
+    cccontracts = list.map(s=>{
+      const t = tick[s.symbol] || {};
+      const m = s.symbol.match(/_(\d{6})$/);
+      const expiry = s.deliveryDate || (m ? Date.UTC(2000+ +m[1].slice(0,2), +m[1].slice(2,4)-1, +m[1].slice(4,6), 8) : 0);
+      return {
+        sym: s.symbol,
+        label: s.symbol.replace(/^(BTC|ETH)USD_/, '') + '  (' + s.contractType + ')',
+        expiry, days: Math.max(0, Math.round((expiry - now)/86400000)),
+        price: parseFloat(t.lastPrice) || null,
+        oi: t.openInterest ? parseFloat(t.openInterest) : null,
+        contractSize: parseFloat(s.contractSize) || 1,
+        pricePrec: s.pricePrecision,
+      };
+    }).sort((a,b)=>a.expiry-b.expiry);
+    if (spot){
+      $('ccspot').value = spot.toFixed(ccCUR.sym==='BTC'?1:2);
+      $('ccspot').classList.remove('blank');
+      $('ccspotLive').textContent = '$'+ccfmt(spot, ccCUR.sym==='BTC'?0:2);
+      $('ccdotSpot').className = 'dot ok';
+    }
+    const sel = $('ccccSel');
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— manual —</option>';
+    cccontracts.forEach(c=>{
+      const opt = document.createElement('option');
+      opt.value = c.sym;
+      opt.textContent = `${c.sym} — exp ${new Date(c.expiry).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}  $${ccfmt(c.price,0)}`;
+      sel.appendChild(opt);
+    });
+    if (prev && cccontracts.some(c=>c.sym===prev)) sel.value = prev;
+    else if (cccontracts.length) sel.value = cccontracts[0].sym;
+    cccontractFromSel();
+    ccrenderCC();
+    return true;
+  }catch(e){
+    $('ccspotLive').textContent = 'fetch failed (manual)'; $('ccdotSpot').className='dot';
+    $('sink').textContent = 'fetch failed — enter prices manually';
+    return false;
+  }
+}
+
+/* ---------- contract selection ---------- */
+function cccontractFromSel(){
+  const v = $('ccccSel').value;
+  const c = cccontracts.find(x=>x.sym===v);
+  if (c && c.price){
+    $('ccfutPrice').value = c.price.toFixed(ccCUR.sym==='BTC'?1:2);
+    $('ccfutPrice').classList.remove('blank');
+    $('sink').textContent = `auto from ${c.sym} — edit to override`;
+    $('ccdotFut').className = 'dot ok';
+  } else if (v){
+    $('sink').textContent = 'no live quote — enter the future price manually';
+    $('ccdotFut').className = 'dot';
+  } else {
+    $('sink').textContent = 'auto from the selected delivery contract — edit to override';
+    $('ccdotFut').className = 'dot';
+  }
+  cccalc();
+}
+
+/* ---------- core math ----------
+   capital = spot + marginPct% × spot        (1 coin spot + initial margin on the short)
+   P&L     = (fut − spot) − fees              (delta-neutral: basis locked in)
+   fees    = 2 × feeSpot% × spot  (spot buy + sell)
+           + feeFut% × fut        (futures open, taker; delivery settlement is free)
+   APY     = P&L / capital × 365 / days
+------------------------------------------------ */
+function ccanalyze(spot, fut, days){
+  const margin = (ccnum('ccmarginPct')/100)*spot;
+  const capital = spot + margin;
+  const fSpot = 2*(ccnum('ccfeeSpot')/100)*spot;
+  const fFut  = (ccnum('ccfeeFut')/100)*fut;
+  const fees  = fSpot + fFut;
+  const basis = fut - spot;
+  const pnl   = basis - fees;
+  const pct   = capital>0 ? pnl/capital*100 : NaN;
+  const apy   = (capital>0 && days>0) ? pct*365/days : NaN;
+  const grossApy = (spot>0 && days>0) ? basis/spot*100*365/days : NaN;
+  return {capital, margin, fees, fSpot, fFut, basis, pnl, pct, apy, grossApy, days};
+}
+
+/* ---------- contract table ---------- */
+function ccccPriceFor(c){ return ccccOverrides[c.sym] != null ? ccccOverrides[c.sym] : c.price; }
+function ccccMarketsEff(){ return cccontracts.map(c => ccccOverrides[c.sym]!=null ? Object.assign({}, c, {price: ccccOverrides[c.sym]}) : c); }
+function ccsetCCOverride(sym, price){
+  if (price == null || !(price > 0)) delete ccccOverrides[sym];
+  else ccccOverrides[sym] = price;
+  const c = cccontracts.find(x=>x.sym===sym);
+  if (c && $('ccccSel').value === sym){
+    $('ccfutPrice').value = ccccPriceFor(c).toFixed(ccCUR.sym==='BTC'?1:2);
+    $('ccfutPrice').classList.remove('blank');
+  }
+  ccrenderCC(); cccalc();
+}
+function ccresetCCPrice(e, sym){ e.stopPropagation(); ccsetCCOverride(sym, null); }
+function cceditCCPrice(e, sym){
+  e.stopPropagation();
+  const c = cccontracts.find(x=>x.sym===sym);
+  if (!c) return;
+  const td = e.target.closest('td');
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.step = '0.01'; inp.min = '0.01';
+  inp.className = 'noEditInput';
+  inp.value = ccccPriceFor(c);
+  td.innerHTML = ''; td.appendChild(inp);
+  ccccEditState = {sym};
+  inp.focus(); inp.select();
+  let done = false;
+  const commit = save => {
+    if (done) return; done = true;
+    ccccEditState = null;
+    if (save){
+      const v = parseFloat(inp.value);
+      ccsetCCOverride(sym, isFinite(v) ? v : null);
+    } else ccrenderCC();
+  };
+  inp.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') commit(true);
+    else if (ev.key === 'Escape') commit(false);
+  });
+  inp.addEventListener('blur', () => commit(true));
+}
+function ccrenderCC(){
+  if (ccccEditState) return;
+  const spot = ccnum('ccspot');
+  const tb = $('ccccTable').querySelector('tbody');
+  tb.innerHTML = '';
+  if (!(spot>0) || !cccontracts.length) return;
+  const sel = $('ccccSel').value;
+  let best = null;
+  cccontracts.forEach(c=>{
+    const p = ccccPriceFor(c);
+    if (!(p>0)) return;
+    const a = ccanalyze(spot, p, c.days);
+    if (a.apy > 0 && (best==null || a.apy > best.apy)) best = c;
+    const tr = document.createElement('tr');
+    tr.className = (c.sym===sel?'sel':'') + (best && best.sym===c.sym?' best':'');
+    const ov = ccccOverrides[c.sym] != null;
+    tr.innerHTML = `<td>${c.sym}</td>
+      <td>${new Date(c.expiry).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})} 08:00 UTC</td>
+      <td>${c.days}</td>
+      <td><span class="${ov?'noOverride':''}">$${ccfmt(p, ccCUR.sym==='BTC'?1:2)}</span>
+        <button class="noEditBtn" onclick="cceditCCPrice(event, '${c.sym}')" title="${ov?'Change the overridden future price':'Edit future price (live quote may be stale/thin)'}">✎</button>
+        ${ov?`<button class="noEditBtn" onclick="ccresetCCPrice(event, '${c.sym}')" title="Reset to live price">×</button>`:''}</td>
+      <td>$${ccfmt(spot, ccCUR.sym==='BTC'?1:2)}</td>
+      <td class="${a.basis>=0?'pos':'neg'}">${a.basis>=0?'+':'−'}$${ccfmt(Math.abs(a.basis), ccCUR.sym==='BTC'?1:2)}</td>
+      <td class="${a.basis>=0?'pos':'neg'}">${ccfmt(a.basis/spot*100,3)}%</td>
+      <td class="${a.grossApy>=0?'pos':'neg'}">${ccfmt(a.grossApy,2)}%</td>
+      <td class="${a.apy>=0?'pos':'neg'}">${ccfmt(a.apy,2)}%</td>`;
+    tr.onclick = () => { $('ccccSel').value = c.sym; cccontractFromSel(); };
+    tb.appendChild(tr);
+  });
+}
+
+/* ---------- main cccalc ---------- */
+function cccalc(){
+  const spot = ccnum('ccspot'), fut = ccnum('ccfutPrice');
+  const c = cccontracts.find(x=>x.sym===$('ccccSel').value);
+  const days = c ? c.days : 0;
+  const ready = spot>0 && fut>0 && days>0;
+  if (!ready){
+    ['ccoCap','ccoBasis','ccoFees','ccoPnl','ccoPct','ccoApy','ccoDays'].forEach(id => $(id).textContent = '—');
+    $('ccoVerdict').style.display = 'none';
+    return;
+  }
+  const a = ccanalyze(spot, fut, days);
+  $('ccoDays').textContent = days + ' days';
+  $('ccoCap').textContent = '$'+ccfmt(a.capital)+'  (per 1 '+ccCUR.sym+')';
+  const sgnB = a.basis>=0 ? '+' : '−';
+  $('ccoBasis').textContent = sgnB+'$'+ccfmt(Math.abs(a.basis), ccCUR.sym==='BTC'?1:2);
+  $('ccoBasis').className = a.basis>=0?'pos':'neg';
+  $('ccoFees').textContent = '−$'+ccfmt(ccmoney1k(a.capital, a.fees),2)+'  (spot −$'+ccfmt(ccmoney1k(a.capital,a.fSpot),2)+' · futures −$'+ccfmt(ccmoney1k(a.capital,a.fFut),2)+')';
+  const sgn = a.pnl>=0 ? '+' : '−';
+  $('ccoPnl').textContent = sgn+'$'+ccfmt(Math.abs(ccmoney1k(a.capital, a.pnl)),2);
+  $('ccoPnl').className = a.pnl>=0?'pos':'neg';
+  $('ccoPct').textContent = sgn+ccfmt(Math.abs(a.pct))+'%';
+  $('ccoPct').className = a.pnl>=0?'pos':'neg';
+  $('ccoApy').textContent = sgn+ccfmt(Math.abs(a.apy))+'%';
+  $('ccoApy').className = a.pnl>=0?'pos':'neg';
+  const v = $('ccoVerdict');
+  v.style.display = 'block';
+  if (a.pnl > 0){
+    v.className = 'verdict ok';
+    v.textContent = `✓ carry is profitable — +$${ccfmt(ccmoney1k(a.capital,a.pnl),2)}/$1k (+${ccfmt(a.pct)}%) over ${days} days = ${ccfmt(a.apy)}% APY net of fees (gross basis APY ${ccfmt(a.grossApy)}%)`;
+  } else {
+    v.className = 'verdict bad';
+    v.textContent = `⚠ fees eat the basis — net P&L −$${ccfmt(Math.abs(ccmoney1k(a.capital,a.pnl)),2)}/$1k. The basis is too thin for this contract length.`;
+  }
+}
+
+/* ---------- asset toggle ---------- */
+function ccswitchAsset(key){
+  if (key === ccCUR.sym) return;
+  ccCUR = ccASSETS[key];
+  $('ccbtnBTC').className = 'assetBtn' + (key==='BTC' ? ' on' : '');
+  $('ccbtnETH').className = 'assetBtn' + (key==='ETH' ? ' on' : '');
+  $('ccassetTag').textContent = '(' + key + ')';
+  /* tabbed: page title fixed */
+  document.querySelectorAll('#paneCC .sym').forEach(el => el.textContent = key);
+  ccccOverrides = {};
+  ccccEditState = null;
+  ['ccspot','ccfutPrice'].forEach(id => { $(id).value = ''; $(id).classList.add('blank'); });
+  $('ccccSel').value = '';
+  $('ccspotLive').textContent = 'fetching…'; $('ccdotSpot').className = 'dot';
+  cccalc();
+  ccloadCC();
+}
+
+/* ---------- init ---------- */
+let ccrefreshing = false;
+async function ccrefreshAll(){
+  if (ccrefreshing) return;
+  ccrefreshing = true;
+  const b = $('ccbtnRefresh');
+  b.disabled = true; b.textContent = '↻ Refreshing…';
+  const ok = await ccloadCC();
+  b.disabled = false; b.textContent = '↻ Refresh data';
+  ccrefreshing = false;
+  if (ok){
+    $('ccstamp').textContent = 'updated ' + new Date().toLocaleTimeString();
+    $('ccccStamp').textContent = 'updated ' + new Date().toLocaleTimeString();
+  } else {
+    $('ccstamp').textContent = '⚠ fetch failed — click ↻ Refresh to retry';
+    $('ccstamp').style.color = 'var(--warn)';
+  }
+}
+cccalc();
+ccloadCC();
+
+</script>
+</body>
+</html>

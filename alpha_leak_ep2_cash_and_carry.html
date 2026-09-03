@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alpha Leak — Cash &amp; Carry (BTC/ETH · Binance Delivery)</title>
+<style>
+  :root{
+    --bg:#0d1117; --card:#161b22; --border:#30363d; --fg:#e6edf3; --muted:#8b949e;
+    --accent:#4da3ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --cc:#39c5cf;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding:20px}
+  h1{font-size:20px; margin:0 0 4px}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:18px; max-width:1100px}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px; max-width:1200px}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px}
+  .card.wide{grid-column:1/-1}
+  .card h2{font-size:14px; margin:0 0 10px; color:var(--cc)}
+  .row{display:flex; justify-content:space-between; align-items:center; gap:10px; margin:6px 0}
+  label{color:var(--muted); font-size:13px}
+  input,select{background:#0d1117; border:1px solid var(--border); color:var(--fg); border-radius:6px; padding:6px 8px; width:150px; font-size:14px}
+  select{width:250px}
+  .hint{color:var(--muted); font-size:12px; margin-top:4px}
+  .dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:6px}
+  .dot.ok{background:var(--ok)}
+  .big{font-size:22px; font-weight:700}
+  .pos{color:var(--ok)} .neg{color:var(--bad)} .warn{color:var(--warn)}
+  button{background:var(--accent); border:none; color:#04121f; font-weight:700; border-radius:7px; padding:7px 12px; cursor:pointer}
+  button.ghost{background:transparent; color:var(--accent); border:1px solid var(--accent)}
+  .assetBtn{background:transparent; color:var(--muted); border:1px solid var(--border); padding:7px 22px; font-size:15px}
+  .assetBtn.on{background:var(--cc); color:#04252a; border-color:var(--cc)}
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  th{color:var(--muted); text-align:right; font-weight:600; padding:4px 6px; border-bottom:1px solid var(--border); white-space:nowrap}
+  td{padding:5px 6px; text-align:right; border-bottom:1px solid #21262d; white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  tr.best{background:rgba(57,197,207,.12)}
+  tr.sel{outline:2px solid var(--cc); outline-offset:-2px}
+  tr.infeas{opacity:.45}
+  .blank{border-color:var(--warn) !important; border-style:dashed !important}
+  .tag{background:#21262d; border:1px solid var(--border); border-radius:6px; padding:2px 8px; font-size:12px; color:var(--muted)}
+  .verdict{font-size:14px; font-weight:700; margin-top:8px; padding:8px 10px; border-radius:8px}
+  .verdict.ok{background:rgba(63,185,80,.12); color:var(--ok)}
+  .verdict.bad{background:rgba(248,81,73,.12); color:var(--bad)}
+  .kv{display:flex; justify-content:space-between; margin:4px 0; font-size:14px}
+  .kv span:first-child{color:var(--muted)}
+  .pct{font-weight:700}
+  .noEditBtn{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:0 5px;font-size:11px;cursor:pointer;margin-left:4px;line-height:16px}
+  .noEditBtn:hover{color:var(--cc);border-color:var(--cc)}
+  .noOverride{color:var(--cc);font-weight:700}
+  .noEditInput{width:74px;padding:2px 5px;font-size:12px;}
+</style>
+</head>
+<body>
+<h1>Alpha Leak — Cash &amp; Carry: spot long + 1× short future <span id="assetTag" style="color:var(--cc)">(BTC)</span> <span class="tag">Binance Coin-M Delivery</span></h1>
+<div style="margin:10px 0 14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+  <button id="btnBTC" class="assetBtn on" onclick="switchAsset('BTC')">BTC</button>
+  <button id="btnETH" class="assetBtn" onclick="switchAsset('ETH')">ETH</button>
+  <span style="flex:1"></span>
+  <button id="btnRefresh" class="ghost" onclick="refreshAll()" title="Re-fetch live data">↻ Refresh data</button>
+  <a href="alpha_leak_ep1_spot_put_no.html" style="color:var(--muted);font-size:13px;text-decoration:none">← EP1 · Spot + Put + NO</a>
+</div>
+<div class="sub">
+  Buy <b>1 <span class="sym">BTC</span> spot</b> and use it as margin to <b>short 1× <span class="sym">BTC</span> in the Coin-M delivery future</b> (contract price &gt; spot = contango).
+  At delivery the future settles to spot: the short leg closes at the same price the spot leg bought at, so the position is <b>delta-neutral</b> and you keep the
+  <b>basis = future − spot</b> as risk-free-ish yield (you still carry liquidation risk if the price gaps past your margin).
+  Result shown as <b>APY</b> to the contract's delivery date. All dollar figures are <b>per $1,000 of capital</b> (capital = spot + initial margin) —
+  <b>return % is the same at any size</b>. P&amp;L is <b>net of trading fees</b>: spot buy <i>and</i> sell (2×), futures open (taker) — delivery settlement is free.
+</div>
+
+<div class="grid">
+
+  <div class="card wide">
+    <h2>Delivery contracts — live basis &amp; APY <span id="ccStamp" style="color:var(--muted);font-size:12px;font-weight:400"></span></h2>
+    <div class="hint" style="margin-bottom:8px">Both live Binance Coin-M delivery contracts for <span class="sym">BTC</span> (end of Sep and end of Dec 2026).
+      Basis = future − spot. <b>APY (gross)</b> = basis ÷ spot annualized to delivery. <b>APY (net)</b> = after the 4 fees below, on capital = spot + initial margin.
+      <b>✎</b> = override a stale/thin quote. Click a row to load it into the calculator.</div>
+    <div style="overflow-x:auto">
+    <table id="ccTable">
+      <thead><tr>
+        <th>Contract</th><th>Delivery</th><th>Days</th><th>Future price</th><th>Spot</th>
+        <th>Basis $</th><th>Basis %</th><th>APY (gross)</th><th>APY (net)</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⓪ Trading fees <span class="tag">net of fees</span></h2>
+    <div class="hint" style="margin-bottom:8px">Every P&amp;L below is <b>after fees</b>: spot <b>buy + sell = 2×</b> your spot fee, futures <b>open</b> (taker) — the short is closed by delivery settlement, no fee. Set a rate to 0 to ignore it.</div>
+    <div class="row"><label>Spot exchange fee % (per trade, Binance basic = 0.1)</label><input id="feeSpot" type="number" step="0.01" value="0.1" style="width:110px" oninput="calc()"></div>
+    <div class="row"><label>Futures taker fee % (open, Coin-M basic = 0.05)</label><input id="feeFut" type="number" step="0.01" value="0.05" style="width:110px" oninput="calc()"></div>
+    <div class="row"><label>Initial margin % (Coin-M tier-1 = 20, required to open = 10)</label><input id="marginPct" type="number" step="1" value="20" style="width:110px" oninput="calc()"></div>
+    <div class="hint">Capital = spot + initial margin (20% of notional). The margin is not extra cost — it's your own spot value locked up — but it IS capital at work, so APY is measured on it.</div>
+  </div>
+
+  <div class="card">
+    <h2>① Prices <span class="tag">per $1,000 capital</span></h2>
+    <div class="row"><label><span class="sym">BTC</span> spot <span class="dot" id="dotSpot"></span><span id="spotLive" style="color:var(--muted);font-size:12px"></span></label>
+      <input id="spot" type="number" step="0.01" class="blank" placeholder="auto"></div>
+    <div class="hint">auto from Binance spot — edit to override</div>
+    <div class="row" style="margin-top:10px"><label>Future price (ask, what you short) <span class="dot" id="dotFut"></span></label>
+      <input id="futPrice" type="number" step="0.01" class="blank" placeholder="auto"></div>
+    <div class="hint" id="futHint">auto from the selected delivery contract — edit to override</div>
+    <div class="row" style="margin-top:10px"><label>Contract</label>
+      <select id="ccSel" onchange="contractFromSel()"><option value="">— manual —</option></select></div>
+  </div>
+
+  <div class="card">
+    <h2>② Result</h2>
+    <div class="kv"><span>Capital (spot + initial margin)</span><b id="oCap">—</b></div>
+    <div class="kv"><span>Basis locked in (future − spot)</span><b id="oBasis">—</b></div>
+    <div class="kv"><span>Trading fees (spot 2× + futures open)</span><b id="oFees" class="neg">—</b></div>
+    <div class="kv"><span><b>P&amp;L at delivery, per $1,000</b></span><b id="oPnl">—</b></div>
+    <div class="kv"><span><b>Return</b></span><b id="oPct" class="pct">—</b></div>
+    <div class="kv"><span><b>APY</b> (to delivery)</span><b id="oApy" class="big">—</b></div>
+    <div class="kv"><span>Days to delivery</span><b id="oDays">—</b></div>
+    <div class="verdict" id="oVerdict" style="display:none"></div>
+  </div>
+
+  <div class="card wide">
+    <h2>How it works</h2>
+    <div style="font-size:13px;color:var(--muted)">
+      <b style="color:var(--fg)">Setup:</b> buy 1 <span class="sym">BTC</span> spot @ $S, post it as collateral, short 1 <span class="sym">BTC</span> delivery future @ $F (F &gt; S).<br>
+      <b style="color:var(--fg)">At delivery:</b> the future settles to the final spot index. Your short leg closes at exactly the price your spot leg is worth → net price exposure ≈ 0.<br>
+      <b style="color:var(--fg)">You keep:</b> F − S (the basis) minus fees — regardless of where <span class="sym">BTC</span> ends up, as long as you survive to delivery.<br>
+      <b style="color:var(--warn)">Risk:</b> if the price gaps up more than your free margin can absorb, the short leg gets liquidated and you're left long-only spot.
+      Initial margin 20% / maintenance 2.5% (tier-1) leaves a wide buffer, but a sustained rally against you is the failure mode — that's the trade-off for the "risk-free" carry.
+    </div>
+  </div>
+
+</div>
+<p style="color:var(--muted);font-size:12px;max-width:1200px;margin-top:14px">
+  Sources: Binance spot (api.binance.com) + Binance USDⓈ-M futures delivery (dapi.binance.com, contractSize 100 for BTC / 10 for ETH, 1 contract = 1 coin).
+  Delivery = 08:00 UTC on the expiry date.
+  <span id="stamp" style="float:right"></span>
+</p>
+
+<script>
+const $ = id => document.getElementById(id);
+const DAPI = 'https://dapi.binance.com/dapi/v1';
+const SPOT = 'https://api.binance.com/api/v3';
+const ASSETS = {
+  BTC: { sym:'BTC', spotSym:'BTCUSDT', contracts:['BTCUSD_260925','BTCUSD_261225'] },
+  ETH: { sym:'ETH', spotSym:'ETHUSDT', contracts:['ETHUSD_260925','ETHUSD_261225'] },
+};
+let CUR = ASSETS.BTC;
+let contracts = [];   // {sym, label, expiry (ms), days, price, oi}
+let ccOverrides = {}; // sym -> price override
+let ccEditState = null;
+
+function num(id){ const v = parseFloat($(id).value); return isFinite(v) ? v : 0; }
+function fmt(v, d=2){ return isFinite(v) ? v.toLocaleString(undefined,{minimumFractionDigits:d, maximumFractionDigits:d}) : '—'; }
+/* Per-$1,000 scaling: all dollar figures shown per $1,000 of capital.
+   Return % and APY are ratios — unchanged at any size. */
+function sfOf(capital){ return capital > 0 ? 1000/capital : 1; }
+function money1k(capital, v){ return capital > 0 ? v*1000/capital : v; }
+
+async function jget(url){
+  const r = await fetch(url, {headers:{'Origin':'null'}});
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+/* ---------- live data ---------- */
+async function loadCC(){
+  try{
+    const [info, spotT] = await Promise.all([
+      jget(`${DAPI}/exchangeInfo`),
+      jget(`${SPOT}/ticker/price?symbol=${CUR.spotSym}`),
+    ]);
+    const spot = parseFloat(spotT.price);
+    const now = Date.now();
+    const list = info.symbols.filter(s => CUR.contracts.includes(s.symbol) && s.contractStatus === 'TRADING');
+    const tick = {};
+    // COIN-M rejects comma-separated symbols on ticker/24hr — fetch one at a time
+    for (const s of list){
+      try{
+        const t = await jget(`${DAPI}/ticker/24hr?symbol=${s.symbol}`);
+        (Array.isArray(t)?t:[t]).forEach(x=>{ tick[x.symbol]=x; });
+      }catch(e){}
+    }
+    contracts = list.map(s=>{
+      const t = tick[s.symbol] || {};
+      const m = s.symbol.match(/_(\d{6})$/);
+      const expiry = s.deliveryDate || (m ? Date.UTC(2000+ +m[1].slice(0,2), +m[1].slice(2,4)-1, +m[1].slice(4,6), 8) : 0);
+      return {
+        sym: s.symbol,
+        label: s.symbol.replace(/^(BTC|ETH)USD_/, '') + '  (' + s.contractType + ')',
+        expiry, days: Math.max(0, Math.round((expiry - now)/86400000)),
+        price: parseFloat(t.lastPrice) || null,
+        oi: t.openInterest ? parseFloat(t.openInterest) : null,
+        contractSize: parseFloat(s.contractSize) || 1,
+        pricePrec: s.pricePrecision,
+      };
+    }).sort((a,b)=>a.expiry-b.expiry);
+    if (spot){
+      $('spot').value = spot.toFixed(CUR.sym==='BTC'?1:2);
+      $('spot').classList.remove('blank');
+      $('spotLive').textContent = '$'+fmt(spot, CUR.sym==='BTC'?0:2);
+      $('dotSpot').className = 'dot ok';
+    }
+    const sel = $('ccSel');
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— manual —</option>';
+    contracts.forEach(c=>{
+      const opt = document.createElement('option');
+      opt.value = c.sym;
+      opt.textContent = `${c.sym} — exp ${new Date(c.expiry).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}  $${fmt(c.price,0)}`;
+      sel.appendChild(opt);
+    });
+    if (prev && contracts.some(c=>c.sym===prev)) sel.value = prev;
+    else if (contracts.length) sel.value = contracts[0].sym;
+    contractFromSel();
+    renderCC();
+    return true;
+  }catch(e){
+    $('spotLive').textContent = 'fetch failed (manual)'; $('dotSpot').className='dot';
+    $('futHint').textContent = 'fetch failed — enter prices manually';
+    return false;
+  }
+}
+
+/* ---------- contract selection ---------- */
+function contractFromSel(){
+  const v = $('ccSel').value;
+  const c = contracts.find(x=>x.sym===v);
+  if (c && c.price){
+    $('futPrice').value = c.price.toFixed(CUR.sym==='BTC'?1:2);
+    $('futPrice').classList.remove('blank');
+    $('futHint').textContent = `auto from ${c.sym} — edit to override`;
+    $('dotFut').className = 'dot ok';
+  } else if (v){
+    $('futHint').textContent = 'no live quote — enter the future price manually';
+    $('dotFut').className = 'dot';
+  } else {
+    $('futHint').textContent = 'auto from the selected delivery contract — edit to override';
+    $('dotFut').className = 'dot';
+  }
+  calc();
+}
+
+/* ---------- core math ----------
+   capital = spot + marginPct% × spot        (1 coin spot + initial margin on the short)
+   P&L     = (fut − spot) − fees              (delta-neutral: basis locked in)
+   fees    = 2 × feeSpot% × spot  (spot buy + sell)
+           + feeFut% × fut        (futures open, taker; delivery settlement is free)
+   APY     = P&L / capital × 365 / days
+------------------------------------------------ */
+function analyze(spot, fut, days){
+  const margin = (num('marginPct')/100)*spot;
+  const capital = spot + margin;
+  const fSpot = 2*(num('feeSpot')/100)*spot;
+  const fFut  = (num('feeFut')/100)*fut;
+  const fees  = fSpot + fFut;
+  const basis = fut - spot;
+  const pnl   = basis - fees;
+  const pct   = capital>0 ? pnl/capital*100 : NaN;
+  const apy   = (capital>0 && days>0) ? pct*365/days : NaN;
+  const grossApy = (spot>0 && days>0) ? basis/spot*100*365/days : NaN;
+  return {capital, margin, fees, fSpot, fFut, basis, pnl, pct, apy, grossApy, days};
+}
+
+/* ---------- contract table ---------- */
+function ccPriceFor(c){ return ccOverrides[c.sym] != null ? ccOverrides[c.sym] : c.price; }
+function ccMarketsEff(){ return contracts.map(c => ccOverrides[c.sym]!=null ? Object.assign({}, c, {price: ccOverrides[c.sym]}) : c); }
+function setCCOverride(sym, price){
+  if (price == null || !(price > 0)) delete ccOverrides[sym];
+  else ccOverrides[sym] = price;
+  const c = contracts.find(x=>x.sym===sym);
+  if (c && $('ccSel').value === sym){
+    $('futPrice').value = ccPriceFor(c).toFixed(CUR.sym==='BTC'?1:2);
+    $('futPrice').classList.remove('blank');
+  }
+  renderCC(); calc();
+}
+function resetCCPrice(e, sym){ e.stopPropagation(); setCCOverride(sym, null); }
+function editCCPrice(e, sym){
+  e.stopPropagation();
+  const c = contracts.find(x=>x.sym===sym);
+  if (!c) return;
+  const td = e.target.closest('td');
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.step = '0.01'; inp.min = '0.01';
+  inp.className = 'noEditInput';
+  inp.value = ccPriceFor(c);
+  td.innerHTML = ''; td.appendChild(inp);
+  ccEditState = {sym};
+  inp.focus(); inp.select();
+  let done = false;
+  const commit = save => {
+    if (done) return; done = true;
+    ccEditState = null;
+    if (save){
+      const v = parseFloat(inp.value);
+      setCCOverride(sym, isFinite(v) ? v : null);
+    } else renderCC();
+  };
+  inp.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') commit(true);
+    else if (ev.key === 'Escape') commit(false);
+  });
+  inp.addEventListener('blur', () => commit(true));
+}
+function renderCC(){
+  if (ccEditState) return;
+  const spot = num('spot');
+  const tb = $('ccTable').querySelector('tbody');
+  tb.innerHTML = '';
+  if (!(spot>0) || !contracts.length) return;
+  const sel = $('ccSel').value;
+  let best = null;
+  contracts.forEach(c=>{
+    const p = ccPriceFor(c);
+    if (!(p>0)) return;
+    const a = analyze(spot, p, c.days);
+    if (a.apy > 0 && (best==null || a.apy > best.apy)) best = c;
+    const tr = document.createElement('tr');
+    tr.className = (c.sym===sel?'sel':'') + (best && best.sym===c.sym?' best':'');
+    const ov = ccOverrides[c.sym] != null;
+    tr.innerHTML = `<td>${c.sym}</td>
+      <td>${new Date(c.expiry).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})} 08:00 UTC</td>
+      <td>${c.days}</td>
+      <td><span class="${ov?'noOverride':''}">$${fmt(p, CUR.sym==='BTC'?1:2)}</span>
+        <button class="noEditBtn" onclick="editCCPrice(event, '${c.sym}')" title="${ov?'Change the overridden future price':'Edit future price (live quote may be stale/thin)'}">✎</button>
+        ${ov?`<button class="noEditBtn" onclick="resetCCPrice(event, '${c.sym}')" title="Reset to live price">×</button>`:''}</td>
+      <td>$${fmt(spot, CUR.sym==='BTC'?1:2)}</td>
+      <td class="${a.basis>=0?'pos':'neg'}">${a.basis>=0?'+':'−'}$${fmt(Math.abs(a.basis), CUR.sym==='BTC'?1:2)}</td>
+      <td class="${a.basis>=0?'pos':'neg'}">${fmt(a.basis/spot*100,3)}%</td>
+      <td class="${a.grossApy>=0?'pos':'neg'}">${fmt(a.grossApy,2)}%</td>
+      <td class="${a.apy>=0?'pos':'neg'}">${fmt(a.apy,2)}%</td>`;
+    tr.onclick = () => { $('ccSel').value = c.sym; contractFromSel(); };
+    tb.appendChild(tr);
+  });
+}
+
+/* ---------- main calc ---------- */
+function calc(){
+  const spot = num('spot'), fut = num('futPrice');
+  const c = contracts.find(x=>x.sym===$('ccSel').value);
+  const days = c ? c.days : 0;
+  const ready = spot>0 && fut>0 && days>0;
+  if (!ready){
+    ['oCap','oBasis','oFees','oPnl','oPct','oApy','oDays'].forEach(id => $(id).textContent = '—');
+    $('oVerdict').style.display = 'none';
+    return;
+  }
+  const a = analyze(spot, fut, days);
+  $('oDays').textContent = days + ' days';
+  $('oCap').textContent = '$'+fmt(a.capital)+'  (per 1 '+CUR.sym+')';
+  const sgnB = a.basis>=0 ? '+' : '−';
+  $('oBasis').textContent = sgnB+'$'+fmt(Math.abs(a.basis), CUR.sym==='BTC'?1:2);
+  $('oBasis').className = a.basis>=0?'pos':'neg';
+  $('oFees').textContent = '−$'+fmt(money1k(a.capital, a.fees),2)+'  (spot −$'+fmt(money1k(a.capital,a.fSpot),2)+' · futures −$'+fmt(money1k(a.capital,a.fFut),2)+')';
+  const sgn = a.pnl>=0 ? '+' : '−';
+  $('oPnl').textContent = sgn+'$'+fmt(Math.abs(money1k(a.capital, a.pnl)),2);
+  $('oPnl').className = a.pnl>=0?'pos':'neg';
+  $('oPct').textContent = sgn+fmt(Math.abs(a.pct))+'%';
+  $('oPct').className = a.pnl>=0?'pos':'neg';
+  $('oApy').textContent = sgn+fmt(Math.abs(a.apy))+'%';
+  $('oApy').className = a.pnl>=0?'pos':'neg';
+  const v = $('oVerdict');
+  v.style.display = 'block';
+  if (a.pnl > 0){
+    v.className = 'verdict ok';
+    v.textContent = `✓ carry is profitable — +$${fmt(money1k(a.capital,a.pnl),2)}/$1k (+${fmt(a.pct)}%) over ${days} days = ${fmt(a.apy)}% APY net of fees (gross basis APY ${fmt(a.grossApy)}%)`;
+  } else {
+    v.className = 'verdict bad';
+    v.textContent = `⚠ fees eat the basis — net P&L −$${fmt(Math.abs(money1k(a.capital,a.pnl)),2)}/$1k. The basis is too thin for this contract length.`;
+  }
+}
+
+/* ---------- asset toggle ---------- */
+function switchAsset(key){
+  if (key === CUR.sym) return;
+  CUR = ASSETS[key];
+  $('btnBTC').className = 'assetBtn' + (key==='BTC' ? ' on' : '');
+  $('btnETH').className = 'assetBtn' + (key==='ETH' ? ' on' : '');
+  $('assetTag').textContent = '(' + key + ')';
+  document.title = 'Alpha Leak — Cash & Carry (' + key + ' · Binance Delivery)';
+  document.querySelectorAll('.sym').forEach(el => el.textContent = key);
+  ccOverrides = {};
+  ccEditState = null;
+  ['spot','futPrice'].forEach(id => { $(id).value = ''; $(id).classList.add('blank'); });
+  $('ccSel').value = '';
+  $('spotLive').textContent = 'fetching…'; $('dotSpot').className = 'dot';
+  calc();
+  loadCC();
+}
+
+/* ---------- init ---------- */
+let refreshing = false;
+async function refreshAll(){
+  if (refreshing) return;
+  refreshing = true;
+  const b = $('btnRefresh');
+  b.disabled = true; b.textContent = '↻ Refreshing…';
+  const ok = await loadCC();
+  b.disabled = false; b.textContent = '↻ Refresh data';
+  refreshing = false;
+  if (ok){
+    $('stamp').textContent = 'updated ' + new Date().toLocaleTimeString();
+    $('ccStamp').textContent = 'updated ' + new Date().toLocaleTimeString();
+  } else {
+    $('stamp').textContent = '⚠ fetch failed — click ↻ Refresh to retry';
+    $('stamp').style.color = 'var(--warn)';
+  }
+}
+calc();
+loadCC();
+</script>
+</body>
+</html>
