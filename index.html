@@ -247,6 +247,13 @@
 
   <div class="card wide">
     <h2>Payoff at settlement (31 Dec 2026) — all possible <span class="sym">ETH</span> prices <span class="tag">per $1,000 capital</span></h2>
+    <div style="display:flex;gap:16px;align-items:center;margin:10px 0 6px;font-size:13px;flex-wrap:wrap">
+      <span style="color:var(--muted)">Show legs:</span>
+      <label style="cursor:pointer"><input type="checkbox" id="legSpot" checked onchange="a1drawChart(a1lastA)"> Spot</label>
+      <label style="cursor:pointer"><input type="checkbox" id="legPut" checked onchange="a1drawChart(a1lastA)"> Long put</label>
+      <label style="cursor:pointer"><input type="checkbox" id="legNo" checked onchange="a1drawChart(a1lastA)"> Bet NO</label>
+      <span id="legNote" style="color:var(--muted);font-size:12px"></span>
+    </div>
     <canvas id="chart" width="1160" height="340"></canvas>
   </div>
 
@@ -803,6 +810,7 @@ function a1renderTable(){
 }
 
 /* ---------- main a1calc ---------- */
+let a1lastA = null;   // last analyzed strategy — lets the payoff-leg checkboxes re-draw the chart
 function a1calc(){
   const spot = a1num('spot'), Kp = a1num('putK'), prem = a1num('putAsk');
   const Kb = a1num('betK'), no = a1num('noRate'), N = a1num('betN');
@@ -812,7 +820,7 @@ function a1calc(){
   if (!ready){
     ['oCap','oMin','oMinPct','oMax','oMaxPct','oApy','oFees'].forEach(id => $(id).textContent = '—');
     $('oVerdict').style.display = 'none';
-    a1renderTable(); a1drawChart(null); return;
+    a1lastA = null; a1renderTable(); a1drawChart(null); return;
   }
   const a = a1analyze(spot, Kp, prem, Kb, no, N);
   const apy = a.minPct*365/days;
@@ -845,7 +853,7 @@ function a1calc(){
   const b = $('nBounds');
   b.innerHTML = `safe range: <b>${Kp<=Kb?a1fmt(a.Nmin,1):'0'} &lt; N &lt; ${a1fmt(a.Nmax,1)}</b> · balanced N = ${a1fmt(Math.max(0,(Kb-Kp)/100),1)} <span style="color:var(--muted)">(why: Info tab)</span>`;
   a1renderTable();
-  a1drawChart(a);
+  a1lastA = a; a1drawChart(a);
 }
 
 /* ---------- chart ---------- */
@@ -855,17 +863,37 @@ function a1drawChart(a){
   ctx.clearRect(0,0,W,H);
   if (!a){
     ctx.fillStyle='#8b949e'; ctx.font='14px sans-serif';
-    ctx.fillText('Fill in spot, put and NO bet to draw the payoff curve.', L, H/2); return;
+    ctx.fillText('Fill in spot, put and NO bet to draw the payoff curve.', L, H/2);
+    if ($('legNote')) $('legNote').textContent = '';
+    return;
   }
   const spot = a1num('spot'), Kp = a1num('putK'), Kb = a1num('betK');
+  const no = a1num('noRate'), N = a1num('betN'), prem = a1num('putAsk');
+  const useSpot = $('legSpot').checked, usePut = $('legPut').checked, useNo = $('legNo').checked;
+  const legNote = $('legNote');
+  if (legNote){
+    const parts = [];
+    if (useSpot) parts.push('spot'); if (usePut) parts.push('put'); if (useNo) parts.push('NO');
+    legNote.textContent = parts.length===3 ? 'full strategy — all legs filled'
+      : parts.length===0 ? 'no legs selected'
+      : (useNo ? 'showing only: '+parts.join(' + ')
+              : '⚠ NO excluded — this is your exposure while the NO order waits to fill');
+  }
   const xMax = Math.max(Kb, Kp, spot)*1.25;
   const xMin = Math.max(0, Math.min(spot, Kp, Kb)*0.5);
   const sfC = a1sfOf(a);   // scale payoff to per-$1,000 so axis/curve/label all match
+  const legPayoff = S => {
+    let v = 0;
+    if (useSpot) v += (S - spot) - a.fSpot;
+    if (usePut)  v += Math.max(Kp - S, 0) - prem - a.fPut;
+    if (useNo)   v += (S < Kb ? N*(100-no) : -N*no) - a.fNo;
+    return v;
+  };
   const xs=[], ys=[];
   let minI = 0;
   for (let n=0;n<=500;n++){
     const S = xMin+(xMax-xMin)*n/500;
-    xs.push(S); ys.push(a.payoff(S)*sfC);
+    xs.push(S); ys.push(legPayoff(S)*sfC);
     if (ys[n] < ys[minI]) minI = n;
   }
   const yMin = Math.min(...ys, 0), yMax = Math.max(...ys, 0);
