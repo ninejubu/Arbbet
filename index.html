@@ -525,6 +525,16 @@ function a1suggestN(spot, Kp, Kb, no, Nmin, Nmax){
   n = Math.max(n, Nmin);
   return Math.round(n*10)/10;
 }
+/* Always returns a number so the Bet size field is never blank:
+   feasible -> the safe balanced N (positive at all prices);
+   infeasible -> the balanced center (Kb-Kp)/100, so the payoff still draws. */
+function a1defaultN(spot, Kp, prem, Kb, no){
+  const a0 = a1analyze(spot, Kp, prem, Kb, no, 0);
+  const nSafe = a1suggestN(spot, Kp, Kb, no, a0.Nmin, a0.Nmax);
+  if (nSafe != null) return nSafe;
+  const center = (Kp <= Kb) ? (Kb - Kp)/100 : 0;
+  return Math.max(0, Math.round(center*10)/10);
+}
 
 /* ---------- live data ---------- */
 async function a1jget(url){
@@ -859,7 +869,14 @@ function a1renderTable(){
 let a1lastA = null;   // last analyzed strategy — lets the payoff-leg checkboxes re-draw the chart
 function a1calc(){
   const spot = a1num('spot'), Kp = a1num('putK'), prem = a1num('putAsk');
-  const Kb = a1num('betK'), no = a1num('noRate'), N = a1num('betN');
+  const Kb = a1num('betK'), no = a1num('noRate');
+  // Default N: if the other 5 inputs are set but the Bet size field is blank,
+  // prefill it so the payoff always draws (safe N when feasible, balanced center when infeasible).
+  if (spot>0 && Kp>0 && prem>0 && Kb>0 && no>0 && no<100 && $('betN').value === ''){
+    $('betN').value = a1defaultN(spot, Kp, prem, Kb, no);
+    $('betN').classList.remove('blank');
+  }
+  const N = a1num('betN');
   const days = a1num('days') || 1;
   const ready = spot>0 && Kp>0 && prem>0 && Kb>0 && no>0 && no<100 && N>=0;
 
