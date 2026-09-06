@@ -1012,13 +1012,13 @@ function a1switchAsset(sym){
   a1CUR = a1ASSETS[sym];
   $('btnETH').className = 'assetBtn' + (sym==='ETH' ? ' on' : '');
   $('btnBTC').className = 'assetBtn' + (sym==='BTC' ? ' on' : '');
-  $('btnGOLD').className = 'assetBtn' + (sym==='GLD' ? ' on' : '');
-  $('goldConvCard').style.display = (sym==='GLD') ? 'block' : 'none';
+  $('btnGOLD').className = 'assetBtn' + (sym==='GOLD' ? ' on' : '');
+  $('goldConvCard').style.display = (sym==='GOLD') ? 'block' : 'none';
   $('assetTag').textContent = '(' + sym + ')';
   document.title = 'Alpha Leak — Arbbet (' + sym + ')';
   document.querySelectorAll('#paneA1 .sym').forEach(el => el.textContent = sym);
   $('sweepTitle').innerHTML = `Entry sweep — best always-positive combo if <span class="sym">${sym}</span> is at … today (loading)`;
-  $('sink').innerHTML = sym==='GLD'
+  $('sink').innerHTML = sym==='GOLD'
     ? `Premium = GLD put ask (USD, embedded CBOE snapshot — refresh via the paste box), NO = live Polymarket GC (50–90c only). <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L shown <b>per $1,000 capital</b>. INFEASIBLE = no N keeps the return positive at every price.`
     : `Premium = live Bybit ask (USD, cash-settled USDT), NO = live Polymarket (50–90c only). <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L shown <b>per $1,000 capital</b>. INFEASIBLE = no N keeps the return positive at every price.`;
   // reset manual inputs — they belong to the other asset
