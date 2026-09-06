@@ -41,6 +41,10 @@
   tr.best{background:rgba(63,185,80,.12)}
   tr.sel{outline:2px solid var(--accent); outline-offset:-2px}
   tr.feas td{cursor:pointer}
+  .fillChip{display:inline-block;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-size:13px;white-space:nowrap}
+  .fillChip b{color:var(--accent)}
+  .fillChip .muted{color:var(--muted);font-size:11px}
+  .fillChip.gap{border-color:var(--warn);color:var(--warn)}
   tr.infeas{opacity:.45}
   .blank{border-color:var(--warn) !important; border-style:dashed !important}
   canvas{width:100%; height:340px; background:#0d1117; border:1px solid var(--border); border-radius:8px}
@@ -111,6 +115,14 @@
   .tabs{display:flex; gap:8px; margin:14px 0 16px}
   .tabBtn{background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:8px 22px; font-size:15px; font-weight:700; cursor:pointer}
   .tabBtn.on{background:var(--accent); color:#04121f; border-color:var(--accent)}
+  #hdr{position:sticky; top:0; z-index:50; background:var(--bg); border-bottom:1px solid var(--border); padding:10px 0 12px; margin-bottom:16px}
+  #hdr .hrow{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
+  #hdr h1{margin:0}
+  #hdrPrice{font-size:20px; font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums}
+  #hdrPrice .sym{color:var(--muted); font-weight:600; font-size:13px; margin-right:6px}
+  #hdr .hsub{color:var(--muted); font-size:12px; margin-top:2px}
+  #hdr .hbtns{margin-left:auto; display:flex; gap:8px; align-items:center}
+  #hdr .tabs{margin:8px 0 0}
   .paneTitle{font-size:15px; font-weight:700; margin:2px 0 4px}
   #paneInfo h3{font-size:13px; color:var(--fg); margin:16px 0 6px}
   #paneInfo p{font-size:13px; color:var(--muted); margin:6px 0}
@@ -121,15 +133,17 @@
 </head>
 <body>
 <div id="sink" style="display:none"></div>
-<h1>Alpha Leak — strategy lab</h1>
-<div style="margin:10px 0 4px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">
-  <span style="flex:1"></span>
-  <button id="btnRefreshAll" class="ghost" onclick="a1RefreshAll();ccRefreshAll()" title="Re-fetch live data for both strategies">↻ Refresh all</button>
-</div>
-<div class="tabs">
-  <button id="tabArbbet" class="tabBtn on" onclick="showTab('a1')">Arbbet <span style="font-weight:400;font-size:12px">· spot + put + NO</span></button>
-  <button id="tabCC" class="tabBtn" onclick="showTab('cc')">Cash &amp; Carry <span style="font-weight:400;font-size:12px">· spot + 1× short future</span></button>
-  <button id="tabInfo" class="tabBtn" onclick="showTab('info')">Info</button>
+<div id="hdr">
+  <div class="hrow">
+    <h1>Alpha Leak — strategy lab</h1>
+    <span id="hdrPrice"><span class="sym">—</span>—</span>
+    <span class="hbtns"><button id="btnRefreshAll" class="ghost" onclick="a1RefreshAll();ccRefreshAll()" title="Re-fetch live data for both strategies">↻ Refresh all</button></span>
+  </div>
+  <div class="tabs">
+    <button id="tabArbbet" class="tabBtn on" onclick="showTab('a1')">Arbbet <span style="font-weight:400;font-size:12px">· spot + put + NO</span></button>
+    <button id="tabCC" class="tabBtn" onclick="showTab('cc')">Cash &amp; Carry <span style="font-weight:400;font-size:12px">· spot + 1× short future</span></button>
+    <button id="tabInfo" class="tabBtn" onclick="showTab('info')">Info</button>
+  </div>
 </div>
 
 <div id="paneA1">
@@ -232,6 +246,25 @@
     <div class="kv"><span>Trading fees (spot 2× + put + NO entry)</span><b id="oFees" class="neg">—</b></div>
     <div class="kv"><span><b>APY</b> (to 31 Dec 2026)</span><b id="oApy" class="big">—</b></div>
     <div class="verdict" id="oVerdict" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <h2>NO Liquidity Fill Plan <span class="tag">real Polymarket book</span></h2>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0">
+      <span style="font-size:13px;color:var(--muted)">Amount $</span>
+      <input type="number" id="fillCap" value="20000" min="100" step="100" style="width:120px">
+      <select id="fillScope" style="width:150px" title="What the $ amount means"><option value="total">Total capital</option><option value="noleg">NO leg only</option></select>
+      <span style="font-size:13px;color:var(--muted)">Strategy</span>
+      <select id="fillStrat" style="width:150px"><option value="best">Best combo (auto)</option><option value="manual">Manual pick (above)</option></select>
+      <button class="btn" id="fillBtn" style="width:auto" onclick="a1buildFillPlan()">Build fill plan</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin:0 0 10px">Walks the <b>real Polymarket NO ask book</b> (best→worst) to fill the Bet&nbsp;NO leg, then shows the blended price you'd actually pay + the per-level $ breakdown, and recomputes the floor/APY with it.</div>
+    <div id="fillOut" style="display:none">
+      <div class="kv" id="fillKv"></div>
+      <div style="margin:12px 0 6px;font-size:12px;color:var(--muted)">NO book walk (ask side, best → worst):</div>
+      <div id="fillChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+      <div id="fillVerdict" class="verdict"></div>
+    </div>
   </div>
 
   <div class="card wide">
@@ -402,6 +435,15 @@ function showTab(k){
   document.getElementById('tabArbbet').className = 'tabBtn' + (k === 'a1' ? ' on' : '');
   document.getElementById('tabCC').className = 'tabBtn' + (k === 'cc' ? ' on' : '');
   document.getElementById('tabInfo').className = 'tabBtn' + (k === 'info' ? ' on' : '');
+  a1updateHdrPrice();
+}
+/* ---------- sticky header: live price of the selected asset ---------- */
+function a1updateHdrPrice(){
+  const el = document.getElementById('hdrPrice');
+  if (!el) return;
+  let sym = a1CUR.sym, v = a1num('spot'), dec = 2;
+  if (!document.getElementById('paneCC').hidden){ sym = ccCUR.sym; v = a1num('ccspot'); dec = (sym==='BTC') ? 0 : 2; }
+  el.innerHTML = '<span class="sym">' + sym + '</span>' + (v > 0 ? '$' + a1fmt(v, dec) : '—');
 }
 </script>
 <script>
@@ -605,6 +647,7 @@ async function a1loadSpotAndOptions(){
       $('spotLive').textContent = '$'+a1fmt(idx); $('dotSpot').className='dot ok';
       if (!parseFloat($('spot').value)) $('spot').value = idx.toFixed(2);
       $('spot').classList.remove('blank');
+      a1updateHdrPrice();
     }
     const ps = $('putSel');
     ps.innerHTML = '<option value="">— manual —</option>';
@@ -637,6 +680,7 @@ async function a1loadGoldSpotAndOptions(){
   $('dotSpot').className = 'dot ok';
   if (!parseFloat($('spot').value)) $('spot').value = gldSpot.toFixed(2);
   $('spot').classList.remove('blank');
+  a1updateHdrPrice();
   a1fillGoldPutSel();
   a1updateConv();
   return !!a1paxgSpot;
@@ -666,9 +710,11 @@ async function a1loadPolymarket(){
         yes = parseFloat(prices[0]);
       }catch(e){}
       const no = isFinite(yes) ? 100*(1-yes) : NaN;
-      return {kOz, no};
+      let tok = null;
+      try{ const ids = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : m.clobTokenIds; tok = ids && ids[1] || null; }catch(e){}
+      return {kOz, no, tok};
     }).filter(x => isFinite(x.no) && x.no >= 50 && x.no <= 90).sort((a,b)=>a.kOz-b.kOz);
-    a1noMarkets = a1noMarketsRaw.map(x => ({ k: a1CUR.isGold ? x.kOz*oz : x.kOz, kDisplay: x.kOz, no: x.no }));
+    a1noMarkets = a1noMarketsRaw.map(x => ({ k: a1CUR.isGold ? x.kOz*oz : x.kOz, kDisplay: x.kOz, no: x.no, tok: x.tok }));
     $('pmLive').textContent = a1noMarkets.length+' markets'; $('dotPM').className='dot ok';
   }catch(e){
     $('pmLive').textContent = 'fetch failed (manual)'; $('dotPM').className='dot';
@@ -960,6 +1006,117 @@ function a1bestComboAt(s, bk, nms, A){
   return best;
 }
 function a1bestCombo(s){ return a1bestComboAt(s, a1books, a1noMarketsEff(), a1CUR); }
+
+/* ---------- NO liquidity fill plan: walk the REAL Polymarket NO ask book ----------
+   The dashboard's floor/APY assumes you buy the whole NO leg at one price (the midpoint).
+   In a thin book that's wrong — a big order walks the book up. This fetches the real ask
+   book for the chosen NO strike, spends the target $ across levels best→worst, reports the
+   blended (average) price you'd actually pay + the per-level $ breakdown, then recomputes
+   the floor/APY with that realistic price. */
+async function a1buildFillPlan(){
+  const out = $('fillOut'), kv = $('fillKv'), chips = $('fillChips'), verdict = $('fillVerdict'), btn = $('fillBtn');
+  const target = a1num('fillCap');
+  const scope  = $('fillScope').value;   // 'total' | 'noleg'
+  const strat  = $('fillStrat').value;   // 'best'  | 'manual'
+  const show = (cls, msg) => { out.style.display='block'; kv.innerHTML=''; chips.innerHTML=''; verdict.className='verdict '+cls; verdict.textContent=msg; };
+  if (!(target > 0)) return show('bad', 'Enter an amount above $0.');
+
+  // 1) resolve the strategy (spot, Kp, prem, Kb, no, N) + the NO market (for its CLOB token)
+  let spot, Kp, prem, Kb, no, N, mkt;
+  if (strat === 'manual'){
+    spot = a1num('spot'); Kp = a1num('putK'); prem = a1num('putAsk'); Kb = a1num('betK'); no = a1num('noRate'); N = a1num('betN');
+    if (!(spot>0 && Kp>0 && prem>0 && Kb>0 && no>0 && no<100))
+      return show('bad', 'Manual pick: fill the Spot / Put / Bet NO fields above first — or switch Strategy to “Best combo”.');
+    mkt = a1noMarketsEff().find(x => x.k === Kb) || a1noMarketsEff().find(x => x.kDisplay === Kb);
+  } else {
+    spot = a1num('spot');
+    if (!(spot > 0)) return show('bad', 'No live spot yet — click ↻ Refresh data first.');
+    const b = a1bestCombo(spot);
+    if (!b) return show('bad', 'No always-positive combo at the live spot right now — nothing to fill.');
+    Kp = b.Kp; prem = b.prem; Kb = b.m.k; no = b.m.no; N = b.N; mkt = b.m;
+  }
+  if (!mkt || !mkt.tok) return show('bad', 'No Polymarket CLOB token for this NO strike — can’t read the real book (Gold snapshot or fetch failed).');
+
+  // 2) how many NO shares this deployment needs
+  //    per-$1k unit: N NO contracts = N*100 shares, NO cost = N*no, total capital = spot+prem+N*no
+  const cap0 = spot + prem + N*no;
+  let sharesToBuy, scopeLabel, scopeValue;
+  if (scope === 'total'){
+    const scale = cap0 > 0 ? target / cap0 : 0;      // how many $1k-units to deploy
+    sharesToBuy = N*100*scale;                        // NO shares for the whole deployment
+    scopeLabel = 'Total capital'; scopeValue = `$${a1fmt(target,0)} total (${a1fmt(scale,2)}× the $1k unit) → NO leg ${a1fmt(sharesToBuy,0)} sh`;
+  } else {
+    sharesToBuy = null;                               // spend-based: spend exactly `target` $ on NO
+    scopeLabel = 'NO leg'; scopeValue = `$${a1fmt(target,0)} into the NO leg`;
+  }
+
+  // 3) fetch + walk the real NO ask book (best → worst)
+  btn.textContent = 'Reading book…'; btn.disabled = true;
+  let book;
+  try { book = await a1jget('https://clob.polymarket.com/book?token_id=' + mkt.tok); }
+  catch(e){ btn.textContent='Build fill plan'; btn.disabled=false; return show('bad', 'Failed to fetch the Polymarket book ('+e+'). Try ↻ Refresh data.'); }
+  btn.textContent = 'Build fill plan'; btn.disabled = false;
+
+  const asks = (book.asks||[]).map(l => ({p: parseFloat(l.price), sz: parseFloat(l.size)}))
+    .filter(l => isFinite(l.p) && l.p>0 && l.p<1 && isFinite(l.sz) && l.sz>0).sort((a,b)=>a.p-b.p);
+  if (!asks.length) return show('bad', 'The NO ask book is empty right now — nothing to fill.');
+
+  // walk best→worst: 'total' buys a fixed number of shares; 'noleg' spends a fixed $
+  let remaining = (scope==='total') ? sharesToBuy : target;
+  let shares = 0, cost = 0;
+  const levels = [];
+  for (const l of asks){
+    if (remaining <= 1e-9) break;
+    let take, takeShares;
+    if (scope === 'total'){ takeShares = Math.min(remaining, l.sz); take = takeShares * l.p; }
+    else { take = Math.min(remaining, l.p * l.sz); takeShares = take / l.p; }
+    if (takeShares <= 0) continue;
+    levels.push({p: l.p, shares: takeShares, dollars: take});
+    shares += takeShares; cost += take;
+    remaining -= (scope==='total') ? takeShares : take;
+  }
+  const blended   = shares > 0 ? cost/shares : NaN;  // $/share actually paid
+  const blendedC  = blended*100;                     // cents
+  const fully     = remaining <= 1e-6;
+  const totalBook$= asks.reduce((s,l)=>s + l.p*l.sz, 0);
+
+  // 4) recompute the strategy with the REAL blended NO price.
+  //    'total': floor% is scale-invariant, so recompute the per-$1k unit with the original N
+  //             (the $-scaling is already applied by a1money1k below).
+  //    'noleg': the NO position is defined by the $ spent, so N = the shares actually filled.
+  const Nfill = (scope==='total') ? N : (shares > 0 ? shares/100 : N);
+  const a = a1analyze(spot, Kp, prem, Kb, blendedC, Nfill);
+  const days = a1num('days') || 1;
+  const apy = a.minPct*365/days;
+
+  // 5) render
+  out.style.display = 'block';
+  const sgn = a.minP>=0 ? '+' : '−';
+  kv.innerHTML =
+    `<div class="kv"><span>Strategy</span><span>${strat==='manual'?'manual pick':'best combo'} · Put K $${a1fmt(Kp,0)} · NO K $${a1fmt(Kb,0)}</span></div>`+
+    `<div class="kv"><span>${scopeLabel}</span><span>${scopeValue}</span></div>`+
+    `<div class="kv"><span>NO midpoint (before fill)</span><span>${a1fmt(no,1)}c</span></div>`+
+    `<div class="kv"><span>Blended NO price (after fill)</span><span class="${blendedC>no?'neg':'pos'}">${a1fmt(blendedC,2)}c</span></div>`+
+    `<div class="kv"><span>NO shares bought</span><span>${a1fmt(shares,0)}</span></div>`+
+    `<div class="kv"><span>NO $ actually spent</span><span>$${a1fmt(cost,0)}${scope==='total'?' (NO leg of the $'+a1fmt(target,0)+' total)':' of $'+a1fmt(target,0)}</span></div>`+
+    `<div class="kv"><span>Floor (worst case)</span><span class="${a.minP>=0?'pos':'neg'}">${sgn}$${a1fmt(Math.abs(a1money1k(a,a.minP)),2)}/$1k (${sgn}${a1fmt(Math.abs(a.minPct))}%)</span></div>`+
+    `<div class="kv"><span>APY (blended)</span><span class="${a.minP>=0?'pos':'neg'}">${sgn}${a1fmt(Math.abs(apy))}%</span></div>`;
+  chips.innerHTML = levels.map(l =>
+    `<span style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px">${a1fmt(l.p*100,0)}c: <b>$${a1fmt(l.dollars,0)}</b> <span style="color:var(--muted)">(${a1fmt(l.shares,0)} sh)</span></span>`
+  ).join('');
+
+  const filledLabel = scope==='total' ? `$${a1fmt(target,0)} total` : `$${a1fmt(target,0)} into NO`;
+  if (!fully){
+    verdict.className = 'verdict bad';
+    verdict.textContent = `⚠ Only ${a1fmt(shares,0)} of ${a1fmt(sharesToBuy||0,0)} NO shares fit in the ask book (whole book ≈ $${a1fmt(totalBook$,0)}). The rest would have to wait or push the price higher — the blended price above is for what actually fills.`;
+  } else if (a.minP > 0){
+    verdict.className = 'verdict ok';
+    verdict.textContent = `✓ Filled ${filledLabel} at a blended ${a1fmt(blendedC,2)}c (vs ${a1fmt(no,1)}c midpoint). Floor stays positive: +$${a1fmt(a1money1k(a,a.minP),2)}/$1k = ${a1fmt(apy)}% APY.`;
+  } else {
+    verdict.className = 'verdict bad';
+    verdict.textContent = `⚠ Filling ${filledLabel} pushes the blended NO price to ${a1fmt(blendedC,2)}c and the floor turns negative (−$${a1fmt(Math.abs(a1money1k(a,a.minP)),2)}/$1k). Size down or split across strikes.`;
+  }
+}
 /* Sweep range anchored to the LIVE spot: lower bound = spot rounded DOWN to the
    nearest step (you can't buy at a price already passed), then 12 rows upward.
    e.g. spot 2550 -> 2500,2600,… ; spot 2480 -> 2400,2500,2600,… */
@@ -1016,6 +1173,7 @@ function a1switchAsset(sym){
   $('goldConvCard').style.display = (sym==='GOLD') ? 'block' : 'none';
   $('assetTag').textContent = '(' + sym + ')';
   document.title = 'Alpha Leak — Arbbet (' + sym + ')';
+  a1updateHdrPrice();
   document.querySelectorAll('#paneA1 .sym').forEach(el => el.textContent = sym);
   $('sweepTitle').innerHTML = `Entry sweep — best always-positive combo if <span class="sym">${sym}</span> is at … today (loading)`;
   $('sink').innerHTML = sym==='GOLD'
@@ -1134,9 +1292,11 @@ async function a1fetchAssetData(key){
         yes = parseFloat(prices[0]);
       }catch(e){}
       const no = isFinite(yes) ? 100*(1-yes) : NaN;
-      return {kOz, no};
+      let tok = null;
+      try{ const ids = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : m.clobTokenIds; tok = ids && ids[1] || null; }catch(e){}
+      return {kOz, no, tok};
     }).filter(x => isFinite(x.no) && x.no >= 50 && x.no <= 90).sort((a,b)=>a.kOz-b.kOz);
-    out.a1noMarkets = raw.map(x => ({ k: key==='GOLD' ? x.kOz*oz : x.kOz, kDisplay: x.kOz, no: x.no }));
+    out.a1noMarkets = raw.map(x => ({ k: key==='GOLD' ? x.kOz*oz : x.kOz, kDisplay: x.kOz, no: x.no, tok: x.tok }));
   }catch(e){ out.err = e.message; }
   return out;
 }
@@ -1244,6 +1404,7 @@ async function ccloadCC(){
       $('ccspot').classList.remove('blank');
       $('ccspotLive').textContent = '$'+ccfmt(spot, ccCUR.sym==='BTC'?0:2);
       $('ccdotSpot').className = 'dot ok';
+      a1updateHdrPrice();
     }
     const sel = $('ccccSel');
     const prev = sel.value;
@@ -1422,6 +1583,7 @@ function ccswitchAsset(key){
   $('ccbtnBTC').className = 'assetBtn' + (key==='BTC' ? ' on' : '');
   $('ccbtnETH').className = 'assetBtn' + (key==='ETH' ? ' on' : '');
   $('ccassetTag').textContent = '(' + key + ')';
+  a1updateHdrPrice();
   /* tabbed: page title fixed */
   document.querySelectorAll('#paneCC .sym').forEach(el => el.textContent = key);
   ccccOverrides = {};

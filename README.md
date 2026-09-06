@@ -8,9 +8,7 @@ market data.
 
 | File | What it does |
 |---|---|
-| `index.html` | **Main dashboard** (served at the site root) — 3 tabs: **Arbbet** (Spot + Put + NO), **Cash & Carry** (spot + 1x short delivery), **Info** (explanations & examples). |
-| `alpha_leak_ep1_spot_put_no.html` | Standalone version of the Spot + Put + NO calculator. |
-| `alpha_leak_ep2_cash_and_carry.html` | Standalone version of the Cash & Carry calculator. |
+| `index.html` | **Main dashboard** (served at the site root) — 3 tabs: **Arbbet** (Spot + Put + NO), **Cash & Carry** (spot + 1x short delivery), **Info** (explanations & examples). Single source of truth for all calculators and the embedded GLD options snapshot. |
 
 ## Data sources
 
