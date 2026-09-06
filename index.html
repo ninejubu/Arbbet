@@ -525,15 +525,21 @@ function a1suggestN(spot, Kp, Kb, no, Nmin, Nmax){
   n = Math.max(n, Nmin);
   return Math.round(n*10)/10;
 }
-/* Always returns a number so the Bet size field is never blank:
-   feasible -> the safe balanced N (positive at all prices);
-   infeasible -> the balanced center (Kb-Kp)/100, so the payoff still draws. */
+/* Always returns a positive "best" N so the Bet size field is never blank/0.
+   Best N = the value that maximizes the worst-case return:
+     Kp <= Kb: balances the crash & rally sides = (Kb-Kp)/100
+     Kp >  Kb: the crash-side boundary Nmin
+   When the strategy is feasible it is clamped into the safe [Nmin, Nmax] window
+   (return positive at every price); when infeasible it still returns the
+   balanced point (floored at 0.1) so the payoff draws around the best N. */
 function a1defaultN(spot, Kp, prem, Kb, no){
   const a0 = a1analyze(spot, Kp, prem, Kb, no, 0);
-  const nSafe = a1suggestN(spot, Kp, Kb, no, a0.Nmin, a0.Nmax);
-  if (nSafe != null) return nSafe;
-  const center = (Kp <= Kb) ? (Kb - Kp)/100 : 0;
-  return Math.max(0, Math.round(center*10)/10);
+  let n = (Kp <= Kb) ? (Kb - Kp)/100 : a0.Nmin;
+  if (a0.Nmax > a0.Nmin && a0.Nmax > 0){
+    n = Math.min(n, a0.Nmax*0.999);
+    n = Math.max(n, a0.Nmin);
+  }
+  return Math.max(0.1, Math.round(n*10)/10);
 }
 
 /* ---------- live data ---------- */
@@ -870,9 +876,10 @@ let a1lastA = null;   // last analyzed strategy — lets the payoff-leg checkbox
 function a1calc(){
   const spot = a1num('spot'), Kp = a1num('putK'), prem = a1num('putAsk');
   const Kb = a1num('betK'), no = a1num('noRate');
-  // Default N: if the other 5 inputs are set but the Bet size field is blank,
-  // prefill it so the payoff always draws (safe N when feasible, balanced center when infeasible).
-  if (spot>0 && Kp>0 && prem>0 && Kb>0 && no>0 && no<100 && $('betN').value === ''){
+  // Default N: if the other 5 inputs are set but the Bet size is blank/0,
+  // prefill it with the best N (maximizes worst-case return) so the payoff
+  // always draws and N is never 0.
+  if (spot>0 && Kp>0 && prem>0 && Kb>0 && no>0 && no<100 && a1num('betN') <= 0){
     $('betN').value = a1defaultN(spot, Kp, prem, Kb, no);
     $('betN').classList.remove('blank');
   }
@@ -1023,6 +1030,31 @@ function a1bestComboAt(s, bk, nms, A){
   return best;
 }
 function a1bestCombo(s){ return a1bestComboAt(s, a1books, a1noMarketsEff(), a1CUR); }
+/* Best-effort combo: like a1bestComboAt but does NOT require a positive
+   worst-case return. Used as the load fallback when the live spot is infeasible,
+   so the panel still shows a full strategy (put + NO + best N) instead of blanks.
+   Ranks by APY (least-bad first); N is the balanced best worst-case value. */
+function a1bestComboAnyAt(s, bk, nms, A){
+  let best = null;
+  for (const [name, b] of Object.entries(bk)){
+    if (!a1isPutName(name) || !b.ask) continue;
+    const Kp = parseFloat(name.split('-')[2]);
+    if (Kp > s + A.putCap) continue;
+    const prem = A.sym==='GLD' ? b.ask : (b.askEth ?? b.ask/(b.index||s)) * s;
+    for (const m of nms){
+      if (m.k <= Kp) continue;
+      const a0 = a1analyze(s, Kp, prem, m.k, m.no, 0);
+      let N = (Kp <= m.k) ? (m.k - Kp)/100 : a0.Nmin;
+      if (a0.Nmax > a0.Nmin && a0.Nmax > 0){ N = Math.min(N, a0.Nmax*0.999); N = Math.max(N, a0.Nmin); }
+      N = Math.max(0.1, Math.round(N*10)/10);
+      const a = a1analyze(s, Kp, prem, m.k, m.no, N);
+      const apy = a.minPct*365/(a1num('days')||1);
+      if (!best || apy > best.apy) best = {Kp, prem, m, N, a, apy};
+    }
+  }
+  return best;
+}
+function a1bestComboAny(s){ return a1bestComboAnyAt(s, a1books, a1noMarketsEff(), a1CUR); }
 
 /* ---------- NO liquidity fill plan: walk the REAL Polymarket NO ask book ----------
    The dashboard's floor/APY assumes you buy the whole NO leg at one price (the midpoint).
@@ -1219,7 +1251,7 @@ async function a1loadAll(){
   const sp = a1num('spot');
   const a1kOf = n => parseFloat(n.split('-')[2]);  // 'GLD-DEC26-480-P' -> 480, 'ETH-25DEC26-2500-P' -> 2500
   if (sp && Object.keys(a1books).length){
-    const b = a1bestCombo(sp);
+    const b = a1bestCombo(sp) || a1bestComboAny(sp);
     if (b){
       const name = Object.keys(a1books).find(n => a1isPutName(n) && a1kOf(n) === b.Kp);
       if (name){ $('putSel').value = name; a1putFromSel(); }
