@@ -140,8 +140,8 @@
     <span class="hbtns"><button id="btnRefreshAll" class="ghost" onclick="a1RefreshAll();ccRefreshAll()" title="Re-fetch live data for both strategies">↻ Refresh all</button></span>
   </div>
   <div class="tabs">
-    <button id="tabArbbet" class="tabBtn on" onclick="showTab('a1')">Arbbet <span style="font-weight:400;font-size:12px">· spot + put + NO</span></button>
-    <button id="tabCC" class="tabBtn" onclick="showTab('cc')">Cash &amp; Carry <span style="font-weight:400;font-size:12px">· spot + 1× short future</span></button>
+    <button id="tabArbbet" class="tabBtn on" onclick="showTab('a1')">Arbbet</button>
+    <button id="tabCC" class="tabBtn" onclick="showTab('cc')">Cash &amp; Carry</button>
     <button id="tabInfo" class="tabBtn" onclick="showTab('info')">Info</button>
   </div>
 </div>
@@ -297,7 +297,7 @@
 
 <div id="paneCC" hidden>
 
-<div class="paneTitle">Cash &amp; Carry — spot long + 1× short future <span id="ccassetTag" style="color:var(--cc)">(BTC)</span> <span class="tag">Binance Coin-M Delivery</span></div>
+<div class="paneTitle">Cash &amp; Carry <span id="ccassetTag" style="color:var(--cc)">(BTC)</span> <span class="tag">Binance Coin-M Delivery</span></div>
 <div style="margin:10px 0 14px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">
   <button id="ccbtnBTC" class="assetBtn on" onclick="ccswitchAsset('BTC')">BTC</button>
   <button id="ccbtnETH" class="assetBtn" onclick="ccswitchAsset('ETH')">ETH</button>
@@ -360,7 +360,7 @@
 <div class="grid">
 
   <div class="card">
-    <h2>Arbbet — Spot + Put + NO</h2>
+    <h2>Arbbet</h2>
     <p>Buy <b>1 ETH spot</b>, buy <b>N Dec-2026 puts</b> (strike below spot) on Bybit, and buy <b>NO shares</b> on Polymarket on the
       "ETH reach $X by 31 Dec 2026" market (X above spot). The put pays out if ETH <i>falls</i>; the NO pays out if ETH <i>doesn't reach</i> X.
       Pick N so the worst case is still positive — that's the "arbitrage" window.</p>
@@ -395,7 +395,7 @@
   </div>
 
   <div class="card">
-    <h2>Cash &amp; Carry — spot long + 1× short future</h2>
+    <h2>Cash &amp; Carry</h2>
     <p>Buy <b>1 BTC spot</b> and use it as margin to <b>short 1× BTC in the Coin-M delivery future</b> (contract price &gt; spot = contango).
       At delivery the future settles to spot: the short leg closes at the same price the spot leg bought at, so the position is
       <b>delta-neutral</b> and you keep the <b>basis = future − spot</b> as risk-free-ish yield (you still carry liquidation risk if the price gaps past your margin).
