@@ -62,7 +62,7 @@
   .noOverride{color:var(--accent);font-weight:700}
   .noEditInput{width:74px;padding:2px 5px;font-size:12px;}
   tr.now td{background:rgba(77,163,255,.10)}
-  tr.now td:first-child::after{content:" ◀ now"; color:var(--accent); font-size:11px; font-weight:700}
+  tr.now td:first-child::after{content:" ◀"; color:var(--accent); font-size:11px; font-weight:700}
 .pct{font-weight:700}
 
 
@@ -1207,30 +1207,31 @@ function a1renderSweep(){
   $('sink').innerHTML = (a1CUR.sym==='GLD'
     ? `Premium = GLD put ask (USD, embedded CBOE snapshot — refresh via the paste box), NO = live Polymarket GC (50–90c only). `
     : `Premium = live Bybit ask (USD, cash-settled USDT), NO = live Polymarket (50–90c only). `)
-    + `<b>◀ now</b> = current entry price (live spot rounded down). <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L is <b>net of trading fees</b>. INFEASIBLE = no N keeps the return positive at every price.`;
+    + `<b>now</b> row = exact live spot — same entry as the Feasibility summary &amp; main panels. Grid below = what-if entries at $${step.toLocaleString()} points. <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L is <b>net of trading fees</b>. INFEASIBLE = no N keeps the return positive at every price.`;
   const spot = a1num('spot');
   const below = Math.min(2, Math.floor(lo/step));  // up to 2 rows below the start, not below 0
   const rows = [];
   for (let i = below; i >= 1; i--) rows.push(lo - i*step);  // strictly-below rows only (lo comes from the main loop)
   for (let s = lo; s <= hi; s += step) rows.push(s);
-  const nowS = lo;  // round-down = the current entry price (your "now")
-  for (const s of rows){
+  const renderRow = (s, label, isNow) => {
     const b = a1bestCombo(s);
     const tr = document.createElement('tr');
-    if (s === nowS) tr.className = 'now';
+    if (isNow) tr.className = 'now';
     if (b){
-      const maxApy = b.a.bestPct*365/days;
       const ov = a1noOverrides[b.m.kDisplay] != null;
-      tr.innerHTML = `<td>$${s.toLocaleString()}</td><td>$${b.Kp.toLocaleString()}</td><td>$${a1fmt(b.prem,0)}</td>
+      tr.innerHTML = `<td>${label}</td><td>$${b.Kp.toLocaleString()}</td><td>$${a1fmt(b.prem,0)}</td>
         <td>$${b.m.k.toLocaleString()}</td><td><span class="${ov?'noOverride':''}">${a1fmt(b.m.no,1)}c</span><button class="noEditBtn" onclick="a1editNoPrice(event, ${b.m.kDisplay})" title="Edit NO price (live quote may be stale/thin)">✎</button>${ov?`<button class="noEditBtn" onclick="a1resetNoPrice(event, ${b.m.kDisplay})" title="Reset to live price">×</button>`:''}</td><td>${a1fmt(b.N,1)}</td>
         <td class="pos">+$${a1fmt(a1money1k(b.a, b.a.minP),2)}</td>
         <td class="pos pct">+${a1fmt(b.a.minPct,2)}%</td><td class="pos">+$${a1fmt(a1money1k(b.a, b.a.bestP),2)}</td>
         <td class="pos">+${a1fmt(b.a.bestPct,2)}%</td><td class="pos">${a1fmt(b.apy,2)}%</td>`;
     } else {
-      tr.innerHTML = `<td>$${s.toLocaleString()}</td><td colspan="10" style="color:var(--warn)">INFEASIBLE — put premium too big vs NO strike spacing</td>`;
+      tr.innerHTML = `<td>${label}</td><td colspan="10" style="color:var(--warn)">INFEASIBLE — put premium too big vs NO strike spacing</td>`;
     }
     tb.appendChild(tr);
-  }
+  };
+  // Top row: exact live spot — the real "now", matches the Feasibility summary
+  if (spot > 0) renderRow(spot, `now $${a1fmt(spot,2)}`, true);
+  for (const s of rows) renderRow(s, `$${s.toLocaleString()}`, false);
 }
 
 /* ---------- asset toggle ---------- */
