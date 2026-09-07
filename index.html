@@ -71,12 +71,33 @@
     --accent:#4da3ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --cc:#39c5cf;
   }
   *{box-sizing:border-box}
-  body{margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding:20px}
+  html{background:var(--bg)}
+  body{margin:0 auto; max-width:1400px; background:var(--bg); color:var(--fg); font:15px/1.5 -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding:20px}
   h1{font-size:20px; margin:0 0 4px}
   .sub{color:var(--muted); font-size:13px; margin-bottom:18px; max-width:1100px}
-  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px}
+  .grid{display:grid; grid-template-columns:repeat(12,1fr); gap:14px}
   .card{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px}
   .card.wide{grid-column:1/-1}
+  /* Balanced responsive layout: 12-col grid, capped page width */
+  #paneA1 .grid > .card{grid-column:span 3}
+  #paneA1 .grid > .wide{grid-column:1/-1}
+  #paneA1 .grid > #a1cResult, #paneA1 .grid > #a1cFill{grid-column:span 6}
+  #paneA1 .grid > #goldConvCard{grid-column:span 12}
+  #paneCC .grid > .card{grid-column:span 4}
+  #paneCC .grid > .wide{grid-column:1/-1}
+  #paneInfo .grid > .card{grid-column:span 6}
+  @media (max-width:1100px){
+    #paneA1 .grid > .card{grid-column:span 6}
+    #paneA1 .grid > .wide{grid-column:1/-1}
+    #paneA1 .grid > #a1cResult, #paneA1 .grid > #a1cFill{grid-column:span 12}
+    #paneA1 .grid > #goldConvCard{grid-column:span 12}
+    #paneCC .grid > .card{grid-column:span 6}
+    #paneCC .grid > .wide{grid-column:1/-1}
+    #paneInfo .grid > .card{grid-column:span 12}
+  }
+  @media (max-width:700px){
+    .grid > .card{grid-column:1/-1 !important}
+  }
   #paneCC .card h2{font-size:14px; margin:0 0 10px; color:var(--cc)}
   .row{display:flex; justify-content:space-between; align-items:center; gap:10px; margin:6px 0}
   label{color:var(--muted); font-size:13px}
@@ -176,14 +197,14 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="a1cFees">
     <h2>⓪ Trading fees <span class="tag">net of fees</span></h2>
     <div class="row"><label>Spot fee % (per trade)</label><input id="feeSpot" type="number" step="0.01" value="0.1" style="width:110px" oninput="a1calc()"></div>
     <div class="row"><label>Options fee % of underlying</label><input id="feePut" type="number" step="0.001" value="0.03" style="width:110px" oninput="a1calc()"></div>
     <div class="row"><label>Polymarket taker rate</label><input id="feePm" type="number" step="0.01" value="0.07" style="width:110px" oninput="a1calc()"></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="a1cSpot">
     <h2>① Spot price <span class="tag">per $1,000 capital</span></h2>
     <div class="row"><label><span class="sym">ETH</span> spot <span class="dot" id="dotSpot"></span><span id="spotLive" style="color:var(--muted);font-size:12px"></span></label>
       <input id="spot" type="number" step="0.01" class="blank" placeholder="auto"></div>
@@ -200,14 +221,25 @@
       <textarea id="gldPaste" rows="2" style="width:100%;background:#0d1117;border:1px dashed var(--warn);color:var(--fg);border-radius:6px;padding:6px;font-size:11px;font-family:monospace" placeholder="[[K,bid,ask,oi],…]" oninput="a1parseGLDPaste()"></textarea></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="a1cPut">
     <h2>② Long put (Bybit, cash-settled USDT, exp 25 Dec 2026)</h2>
     <div class="row"><label>Put</label><select id="putSel" onchange="a1putFromSel()"><option value="">— manual —</option></select></div>
     <div class="row" id="putManualRow" style="display:none"><label>Strike</label><input id="putK" type="number" step="1" class="blank" oninput="a1calc()"></div>
     <div class="row"><label>Premium (ask, what you pay)</label><input id="putAsk" type="number" step="0.01" class="blank" oninput="a1calc()"></div>
   </div>
 
-  <div class="card wide">
+  <div class="card" id="a1cN">
+    <h2>④ Bet size N (contracts of $100) <span class="tag">per $1,000 capital</span></h2>
+    <div class="row"><label>N</label>
+      <span style="display:flex;gap:6px;align-items:center">
+        <input id="betN" type="number" step="0.1" class="blank" oninput="a1calc()">
+        <button class="ghost" onclick="a1autoN()">⚡ Auto</button>
+      </span>
+    </div>
+    <div id="nBounds" style="margin-top:10px;font-size:13px"></div>
+  </div>
+
+  <div class="card wide" id="a1cNo">
     <h2>③ NO bet — "<span class="sym">ETH</span> reach $X by 31 Dec 2026" (Polymarket) <span class="dot" id="dotPM"></span><span id="pmLive" style="color:var(--muted);font-size:12px"></span></h2>
     <div style="overflow-x:auto">
     <table id="noTable">
@@ -225,18 +257,7 @@
     </div>
   </div>
 
-  <div class="card">
-    <h2>④ Bet size N (contracts of $100) <span class="tag">per $1,000 capital</span></h2>
-    <div class="row"><label>N</label>
-      <span style="display:flex;gap:6px;align-items:center">
-        <input id="betN" type="number" step="0.1" class="blank" oninput="a1calc()">
-        <button class="ghost" onclick="a1autoN()">⚡ Auto</button>
-      </span>
-    </div>
-    <div id="nBounds" style="margin-top:10px;font-size:13px"></div>
-  </div>
-
-  <div class="card">
+  <div class="card" id="a1cResult">
     <h2>⑤ Result</h2>
     <div class="kv"><span>Capital (per-coin: spot + premium + N×NO)</span><b id="oCap">—</b></div>
     <div class="kv"><span>Worst-case P&amp;L per $1,000 (min over all prices)</span><b id="oMin">—</b></div>
@@ -248,7 +269,7 @@
     <div class="verdict" id="oVerdict" style="display:none"></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="a1cFill">
     <h2>NO Liquidity Fill Plan <span class="tag">real Polymarket book</span></h2>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0">
       <span style="font-size:13px;color:var(--muted)">Amount $</span>
@@ -307,7 +328,7 @@
 
 <div class="grid">
 
-  <div class="card wide">
+  <div class="card wide" id="ccccTableCard">
     <h2>Delivery contracts — live basis &amp; APY <span id="ccccStamp" style="color:var(--muted);font-size:12px;font-weight:400"></span></h2>
     <div style="overflow-x:auto">
     <table id="ccccTable">
@@ -320,14 +341,14 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="ccFees">
     <h2>⓪ Trading fees <span class="tag">net of fees</span></h2>
     <div class="row"><label>Spot fee % (per trade)</label><input id="ccfeeSpot" type="number" step="0.01" value="0.1" style="width:110px" oninput="cccalc()"></div>
     <div class="row"><label>Futures taker fee % (open)</label><input id="ccfeeFut" type="number" step="0.01" value="0.05" style="width:110px" oninput="cccalc()"></div>
     <div class="row"><label>Initial margin % (required to open = 10)</label><input id="ccmarginPct" type="number" step="1" value="20" style="width:110px" oninput="cccalc()"></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="ccPrices">
     <h2>① Prices <span class="tag">per $1,000 capital</span></h2>
     <div class="row"><label><span class="sym">BTC</span> spot <span class="dot" id="ccdotSpot"></span><span id="ccspotLive" style="color:var(--muted);font-size:12px"></span></label>
       <input id="ccspot" type="number" step="0.01" class="blank" placeholder="auto"></div>
@@ -337,7 +358,7 @@
       <select id="ccccSel" onchange="cccontractFromSel()"><option value="">— manual —</option></select></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="ccResult">
     <h2>② Result</h2>
     <div class="kv"><span>Capital (spot + initial margin)</span><b id="ccoCap">—</b></div>
     <div class="kv"><span>Basis locked in (future − spot)</span><b id="ccoBasis">—</b></div>
