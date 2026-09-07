@@ -1207,14 +1207,31 @@ function a1renderSweep(){
   $('sink').innerHTML = (a1CUR.sym==='GLD'
     ? `Premium = GLD put ask (USD, embedded CBOE snapshot — refresh via the paste box), NO = live Polymarket GC (50–90c only). `
     : `Premium = live Bybit ask (USD, cash-settled USDT), NO = live Polymarket (50–90c only). `)
-    + `<b>now</b> row = exact live spot — same entry as the Feasibility summary &amp; main panels. Grid below = what-if entries at $${step.toLocaleString()} points. <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L is <b>net of trading fees</b>. INFEASIBLE = no N keeps the return positive at every price.`;
+    + `<b>now</b> row = exact live spot — same entry as the Feasibility summary &amp; main panels. Grid below = what-if entries at $${step.toLocaleString()} points, showing only <b>feasible</b> rows plus the <b>nearest infeasible boundary</b> (where feasibility breaks) — the rest are hidden. <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L is <b>net of trading fees</b>. INFEASIBLE = no N keeps the return positive at every price.`;
   const spot = a1num('spot');
   const below = Math.min(2, Math.floor(lo/step));  // up to 2 rows below the start, not below 0
   const rows = [];
   for (let i = below; i >= 1; i--) rows.push(lo - i*step);  // strictly-below rows only (lo comes from the main loop)
   for (let s = lo; s <= hi; s += step) rows.push(s);
-  const renderRow = (s, label, isNow) => {
-    const b = a1bestCombo(s);
+  // Precompute the best combo for every grid row, then filter: show all
+  // FEASIBLE entries + the infeasible rows that border the feasible range
+  // (the nearest infeasible on each side, where feasibility breaks). All
+  // other infeasible rows are hidden.
+  //   e.g. 2200-2400 feasible, 2500+ infeasible -> show 2200,2300,2400,2500
+  //   (2500 = upper boundary; 2600-3500 hidden).
+  //   If 3000-3100 are feasible again -> show 2200,2300,2400,2500,3000,3100,3200
+  //   (2500 + 3200 = boundaries; the 2600-2900 gap hidden).
+  const combos = rows.map(s => a1bestCombo(s));
+  const feas = combos.map(b => b != null);
+  const hasFeas = feas.some(Boolean);
+  const show = rows.map((s, i) => {
+    if (!hasFeas) return i === below;        // nothing feasible: show only the row nearest the spot
+    if (feas[i]) return true;                // show every feasible entry
+    // infeasible: show only if it borders a feasible row (boundary on either side)
+    return (i > 0 && feas[i-1]) || (i < feas.length-1 && feas[i+1]);
+  });
+  const renderRow = (s, label, isNow, pre) => {
+    const b = pre !== undefined ? pre : a1bestCombo(s);
     const tr = document.createElement('tr');
     if (isNow) tr.className = 'now';
     if (b){
@@ -1229,9 +1246,12 @@ function a1renderSweep(){
     }
     tb.appendChild(tr);
   };
-  // Top row: exact live spot — the real "now", matches the Feasibility summary
+  // Top row: exact live spot — the real "now", matches the Feasibility summary (always shown)
   if (spot > 0) renderRow(spot, `now $${a1fmt(spot,2)}`, true);
-  for (const s of rows) renderRow(s, `$${s.toLocaleString()}`, false);
+  for (let i = 0; i < rows.length; i++){
+    if (!show[i]) continue;  // all-infeasible case: show[0] (lo, nearest spot) is the only true
+    renderRow(rows[i], `$${rows[i].toLocaleString()}`, false, combos[i]);
+  }
 }
 
 /* ---------- asset toggle ---------- */
