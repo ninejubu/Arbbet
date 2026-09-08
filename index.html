@@ -281,9 +281,9 @@
     </div>
     <div style="font-size:12px;color:var(--muted);margin:0 0 10px">Walks the <b>real Polymarket NO ask book</b> (best→worst) to fill the Bet&nbsp;NO leg, then shows the blended price you'd actually pay + the per-level $ breakdown, and recomputes the floor/APY with it.</div>
     <div id="fillOut" style="display:none">
-      <div class="kv" id="fillKv"></div>
-      <div style="margin:12px 0 6px;font-size:12px;color:var(--muted)">NO book walk (ask side, best → worst):</div>
-      <div id="fillChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+      <div id="fillKv"></div>
+      <div style="margin:14px 0 6px;font-size:12px;color:var(--muted)">NO book walk (ask side, best → worst):</div>
+      <div id="fillChips" style="margin-bottom:10px;overflow-x:auto"></div>
       <div id="fillVerdict" class="verdict"></div>
     </div>
   </div>
@@ -1084,7 +1084,7 @@ function a1bestComboAny(s){ return a1bestComboAnyAt(s, a1books, a1noMarketsEff()
    blended (average) price you'd actually pay + the per-level $ breakdown, then recomputes
    the floor/APY with that realistic price. */
 async function a1buildFillPlan(){
-  const out = $('fillOut'), kv = $('fillKv'), chips = $('fillChips'), verdict = $('fillVerdict'), btn = $('fillBtn');
+  const out = $('fillOut'), kv = $('fillKv'), chips = $('fillTable'), verdict = $('fillVerdict'), btn = $('fillBtn');
   const target = a1num('fillCap');
   const scope  = $('fillScope').value;   // 'total' | 'noleg'
   const strat  = $('fillStrat').value;   // 'best'  | 'manual'
@@ -1159,21 +1159,35 @@ async function a1buildFillPlan(){
   const days = a1num('days') || 1;
   const apy = a.minPct*365/days;
 
-  // 5) render
+  // 5) render — clean tables (readable, not crowded chips)
   out.style.display = 'block';
   const sgn = a.minP>=0 ? '+' : '−';
+  const kvRow = (label, val, cls) => `<tr><td style="color:var(--muted);padding:5px 14px 5px 0;white-space:nowrap">${label}</td><td style="text-align:right;font-weight:600" class="${cls||''}">${val}</td></tr>`;
   kv.innerHTML =
-    `<div class="kv"><span>Strategy</span><span>${strat==='manual'?'manual pick':'best combo'} · Put K $${a1fmt(Kp,0)} · NO K $${a1fmt(Kb,0)}</span></div>`+
-    `<div class="kv"><span>${scopeLabel}</span><span>${scopeValue}</span></div>`+
-    `<div class="kv"><span>NO midpoint (before fill)</span><span>${a1fmt(no,1)}c</span></div>`+
-    `<div class="kv"><span>Blended NO price (after fill)</span><span class="${blendedC>no?'neg':'pos'}">${a1fmt(blendedC,2)}c</span></div>`+
-    `<div class="kv"><span>NO shares bought</span><span>${a1fmt(shares,0)}</span></div>`+
-    `<div class="kv"><span>NO $ actually spent</span><span>$${a1fmt(cost,0)}${scope==='total'?' (NO leg of the $'+a1fmt(target,0)+' total)':' of $'+a1fmt(target,0)}</span></div>`+
-    `<div class="kv"><span>Floor (worst case)</span><span class="${a.minP>=0?'pos':'neg'}">${sgn}$${a1fmt(Math.abs(a1money1k(a,a.minP)),2)}/$1k (${sgn}${a1fmt(Math.abs(a.minPct))}%)</span></div>`+
-    `<div class="kv"><span>APY (blended)</span><span class="${a.minP>=0?'pos':'neg'}">${sgn}${a1fmt(Math.abs(apy))}%</span></div>`;
-  chips.innerHTML = levels.map(l =>
-    `<span style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:12px">${a1fmt(l.p*100,0)}c: <b>$${a1fmt(l.dollars,0)}</b> <span style="color:var(--muted)">(${a1fmt(l.shares,0)} sh)</span></span>`
-  ).join('');
+    `<table style="width:100%;border-collapse:collapse;font-size:14px">`+
+    kvRow('Strategy', `${strat==='manual'?'manual pick':'best combo'} · Put K $${a1fmt(Kp,0)} · NO K $${a1fmt(Kb,0)}`)+
+    kvRow(scopeLabel, scopeValue)+
+    kvRow('NO midpoint (before fill)', `${a1fmt(no,1)}c`)+
+    kvRow('Blended NO price (after fill)', `${a1fmt(blendedC,2)}c`, blendedC>no?'neg':'pos')+
+    kvRow('NO shares bought', `${a1fmt(shares,0)}`)+
+    kvRow('NO $ actually spent', `$${a1fmt(cost,0)}${scope==='total'?' (NO leg of the $'+a1fmt(target,0)+' total)':' of $'+a1fmt(target,0)}`)+
+    kvRow('Floor (worst case)', `${sgn}$${a1fmt(Math.abs(a1money1k(a,a.minP)),2)}/$1k (${sgn}${a1fmt(Math.abs(a.minPct))}%)`, a.minP>=0?'pos':'neg')+
+    kvRow('APY (blended)', `${sgn}${a1fmt(Math.abs(apy))}%`, a.minP>=0?'pos':'neg')+
+    `</table>`;
+  // book walk as a table: one row per level, aligned columns, running totals
+  let run$ = 0, runSh = 0;
+  const body = levels.map(l => { run$ += l.dollars; runSh += l.shares;
+    return `<tr><td>${a1fmt(l.p*100,1)}c</td><td style="text-align:right">$${a1fmt(l.dollars,2)}</td><td style="text-align:right">${a1fmt(l.shares,0)}</td><td style="text-align:right;color:var(--muted)">$${a1fmt(run$,2)}</td><td style="text-align:right;color:var(--muted)">${a1fmt(runSh,0)}</td></tr>`;
+  }).join('');
+  chips.innerHTML =
+    `<table style="width:100%;border-collapse:collapse;font-size:13px">`+
+    `<thead><tr style="border-bottom:1px solid var(--border);color:var(--muted);font-weight:600">`+
+    `<th style="text-align:left;padding:4px 8px">Level</th>`+
+    `<th style="text-align:right;padding:4px 8px">$ at level</th>`+
+    `<th style="text-align:right;padding:4px 8px">Shares</th>`+
+    `<th style="text-align:right;padding:4px 8px">$ total</th>`+
+    `<th style="text-align:right;padding:4px 8px">Shares total</th>`+
+    `</tr></thead><tbody>${body}</tbody></table>`;
 
   const filledLabel = scope==='total' ? `$${a1fmt(target,0)} total` : `$${a1fmt(target,0)} into NO`;
   if (!fully){
