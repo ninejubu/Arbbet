@@ -275,15 +275,16 @@
   <div class="card" id="a1cFill">
     <h2>NO Liquidity Fill Plan <span class="tag">real Polymarket book</span></h2>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0">
-      <span style="font-size:13px;color:var(--muted)">Amount $</span>
-      <input type="number" id="fillCap" value="20000" min="100" step="100" style="width:120px">
+      <span style="font-size:13px;color:var(--muted)">Your balance $</span>
+      <input type="number" id="fillCap" value="20000" min="100" step="100" style="width:140px" title="How much total you want to deploy">
       <select id="fillScope" style="width:150px" title="What the $ amount means"><option value="total">Total capital</option><option value="noleg">NO leg only</option></select>
       <span style="font-size:13px;color:var(--muted)">Strategy</span>
       <select id="fillStrat" style="width:150px"><option value="best">Best combo (auto)</option><option value="manual">Manual pick (above)</option></select>
       <button class="btn" id="fillBtn" style="width:auto" onclick="a1buildFillPlan()">Build fill plan</button>
     </div>
-    <div style="font-size:12px;color:var(--muted);margin:0 0 10px">Walks the <b>real Polymarket NO ask book</b> (best→worst) to fill the Bet&nbsp;NO leg, then shows the blended price you'd actually pay + the per-level $ breakdown, and recomputes the floor/APY with it.</div>
+    <div style="font-size:12px;color:var(--muted);margin:0 0 10px">Enter your <b>total balance</b> (e.g. 5000), pick <b>Total capital</b>, and it walks the <b>real Polymarket NO ask book</b> (best→worst) to fill the Bet&nbsp;NO leg — then shows the <b>Spot / Put / NO split</b>, the blended price you'd actually pay, and recomputes the floor/APY with it.</div>
     <div id="fillOut" style="display:none">
+      <div id="fillSplit"></div>
       <div id="fillKv"></div>
       <div style="margin:14px 0 6px;font-size:12px;color:var(--muted)">NO book walk (ask side, best → worst):</div>
       <div id="fillChips" style="margin-bottom:10px;overflow-x:auto"></div>
@@ -476,11 +477,11 @@ function a1updateHdrPrice(){
 const $ = id => document.getElementById(id);
 const a1SETTLE = new Date('2026-12-31T00:00:00Z');
 const a1ASSETS = {
-  ETH: { sym:'ETH', ev:/what price will ethereum hit in 2026/i, oz:1,
+  ETH: { sym:'ETH', ev:/what price will ethereum hit in 2026/i, oz:1, step:0.1,
          sweep:[2400,3500,100], putCap:400, sweepLabel:'$2,400–$3,500' },
-  BTC: { sym:'BTC', ev:/what price will bitcoin hit in 2026/i, oz:1,
+  BTC: { sym:'BTC', ev:/what price will bitcoin hit in 2026/i, oz:1, step:0.01,
          sweep:[60000,120000,5000], putCap:30000, sweepLabel:'$60,000–$120,000' },
-  GOLD:{ sym:'GLD', ev:/will gold \(gc\) hit/i, oz:0.0924, isGold:true,
+  GOLD:{ sym:'GLD', ev:/will gold \(gc\) hit/i, oz:0.0924, isGold:true, step:1,
          slug:'what-will-gold-gc-hit-by-end-of-december',
          sweep:[380,480,10], putCap:200, sweepLabel:'$380–$480 (GLD)' },
 };
@@ -1101,7 +1102,7 @@ async function a1buildFillPlan(){
   const target = a1num('fillCap');
   const scope  = $('fillScope').value;   // 'total' | 'noleg'
   const strat  = $('fillStrat').value;   // 'best'  | 'manual'
-  const show = (cls, msg) => { out.style.display='block'; kv.innerHTML=''; chips.innerHTML=''; verdict.className='verdict '+cls; verdict.textContent=msg; };
+  const show = (cls, msg) => { out.style.display='block'; kv.innerHTML=''; chips.innerHTML=''; $('fillSplit').innerHTML=''; verdict.className='verdict '+cls; verdict.textContent=msg; };
   if (!(target > 0)) return show('bad', 'Enter an amount above $0.');
 
   // 1) resolve the strategy (spot, Kp, prem, Kb, no, N) + the NO market (for its CLOB token)
@@ -1123,13 +1124,16 @@ async function a1buildFillPlan(){
   // 2) how many NO shares this deployment needs
   //    per-$1k unit: N NO contracts = N*100 shares, NO cost = N*no, total capital = spot+prem+N*no
   const cap0 = spot + prem + N*no;
-  let sharesToBuy, scopeLabel, scopeValue;
+  let sharesToBuy, scopeLabel, scopeValue, units;
+  const step = (a1CUR && a1CUR.step) || 1;   // exchange min: ETH 0.1, BTC 0.01, GLD 1
   if (scope === 'total'){
-    const scale = cap0 > 0 ? target / cap0 : 0;      // how many $1k-units to deploy
-    sharesToBuy = N*100*scale;                        // NO shares for the whole deployment
-    scopeLabel = 'Total capital'; scopeValue = `$${a1fmt(target,0)} total (${a1fmt(scale,2)}× the $1k unit) → NO leg ${a1fmt(sharesToBuy,0)} sh`;
+    const scaleRaw = cap0 > 0 ? target / cap0 : 0;  // raw units the balance would buy
+    units = Math.floor(scaleRaw / step) * step;      // round DOWN to the exchange minimum
+    sharesToBuy = N*100*units;                        // NO shares for the whole deployment
+    scopeLabel = 'Total capital'; scopeValue = `$${a1fmt(target,0)} total → ${a1fmt(units,step<1?2:0)} units (min step ${step}) → NO leg ${a1fmt(sharesToBuy,0)} sh`;
   } else {
     sharesToBuy = null;                               // spend-based: spend exactly `target` $ on NO
+    units = null;
     scopeLabel = 'NO leg'; scopeValue = `$${a1fmt(target,0)} into the NO leg`;
   }
 
@@ -1171,6 +1175,37 @@ async function a1buildFillPlan(){
   const a = a1analyze(spot, Kp, prem, Kb, blendedC, Nfill);
   const days = a1num('days') || 1;
   const apy = a.minPct*365/days;
+
+  // 4b) the Spot / Put / NO split of the balance (scope 'total')
+  const splitEl = $('fillSplit');
+  let splitHtml = '';
+  if (scope === 'total'){
+    const sym = (a1CUR && a1CUR.sym) || 'ETH';
+    const unitLabel = sym==='GOLD' ? 'GLD' : sym;
+    const d = step < 1 ? 2 : 0;
+    const spotAlloc = units * spot;
+    const putAlloc  = units * prem;
+    const noAlloc   = cost;                          // $ actually spent on NO (blended, rounded size)
+    const totalAlloc= spotAlloc + putAlloc + noAlloc;
+    const leftOver  = target - totalAlloc;
+    const sRow = (leg, size, amt, cls) => `<tr><td style="padding:5px 14px 5px 0;white-space:nowrap">${leg}</td><td style="text-align:right;color:var(--muted)">${size}</td><td style="text-align:right;font-weight:600" class="${cls||''}">${amt}</td></tr>`;
+    splitHtml =
+      `<div style="margin:0 0 14px">`+
+      `<div style="font-size:12px;color:var(--muted);margin-bottom:6px">Capital split of your $${a1fmt(target,0)} balance — size rounded down to ${a1fmt(units,d)} ${unitLabel} (min step ${step}):</div>`+
+      `<table style="width:100%;border-collapse:collapse;font-size:14px">`+
+      `<thead><tr style="border-bottom:1px solid var(--border);color:var(--muted);font-weight:600">`+
+      `<th style="text-align:left;padding:4px 14px 4px 0">Leg</th>`+
+      `<th style="text-align:right;padding:4px 8px">Size</th>`+
+      `<th style="text-align:right;padding:4px 8px">Amount to buy</th>`+
+      `</tr></thead><tbody>`+
+      sRow('① Buy Spot', a1fmt(units,d)+' '+unitLabel, '$'+a1fmt(spotAlloc,2))+
+      sRow('② Long Put (K $'+a1fmt(Kp,0)+')', a1fmt(units,d)+' contracts', '$'+a1fmt(putAlloc,2))+
+      sRow('③ Buy NO (K $'+a1fmt(Kb,0)+')', a1fmt(shares,0)+' shares @ ~'+a1fmt(blendedC,2)+'c', '$'+a1fmt(noAlloc,2))+
+      `<tr style="border-top:1px solid var(--border)"><td style="padding:5px 14px 5px 0;font-weight:700">Total deployed</td><td></td><td style="text-align:right;font-weight:700">$${a1fmt(totalAlloc,2)}</td></tr>`+
+      sRow('Cash left (reserve)', '', '$'+a1fmt(Math.max(leftOver,0),2), leftOver<0?'neg':'')+
+      `</tbody></table></div>`;
+  }
+  splitEl.innerHTML = splitHtml;
 
   // 5) render — clean tables (readable, not crowded chips)
   out.style.display = 'block';
