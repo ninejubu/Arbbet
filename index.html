@@ -276,18 +276,20 @@
     <h2>NO Liquidity Fill Plan <span class="tag">real Polymarket book</span></h2>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0">
       <span style="font-size:13px;color:var(--muted)">Your balance $</span>
-      <input type="number" id="fillCap" value="20000" min="100" step="100" style="width:140px" title="How much total you want to deploy">
-      <select id="fillScope" style="width:150px" title="What the $ amount means"><option value="total">Total capital</option><option value="noleg">NO leg only</option></select>
+      <input type="number" id="fillCap" value="5000" min="100" step="100" style="width:140px" title="How much total you want to deploy">
+      <select id="fillScope" style="width:150px" title="Total capital = split the whole balance across Spot + Put + NO (recommended). NO leg only = put all of it into just the NO leg."><option value="total">Total capital</option><option value="noleg">NO leg only</option></select>
       <span style="font-size:13px;color:var(--muted)">Strategy</span>
-      <select id="fillStrat" style="width:150px"><option value="best">Best combo (auto)</option><option value="manual">Manual pick (above)</option></select>
+      <select id="fillStrat" style="width:180px" title="Auto (recommended) = use the best always-positive combo the dashboard already picked. My own numbers = use the Spot / Put / NO values you typed in the panels above."><option value="best">Auto (recommended)</option><option value="manual">My own numbers</option></select>
       <button class="btn" id="fillBtn" style="width:auto" onclick="a1buildFillPlan()">Build fill plan</button>
     </div>
-    <div style="font-size:12px;color:var(--muted);margin:0 0 10px">Enter your <b>total balance</b> (e.g. 5000), pick <b>Total capital</b>, and it walks the <b>real Polymarket NO ask book</b> (best→worst) to fill the Bet&nbsp;NO leg — then shows the <b>Spot / Put / NO split</b>, the blended price you'd actually pay, and recomputes the floor/APY with it.</div>
+    <div style="font-size:12px;color:var(--muted);margin:0 0 10px">Enter your <b>total balance</b> (e.g. 5000) and click <b>Build fill plan</b>. It splits the balance into <b>Spot / Put / NO</b>, walks the <b>real Polymarket NO book</b> to find the price you'd actually pay, and shows your <b>floor (worst case) + APY</b>.</div>
     <div id="fillOut" style="display:none">
       <div id="fillSplit"></div>
       <div id="fillKv"></div>
-      <div style="margin:14px 0 6px;font-size:12px;color:var(--muted)">NO book walk (ask side, best → worst):</div>
-      <div id="fillChips" style="margin-bottom:10px;overflow-x:auto"></div>
+      <details style="margin:14px 0 10px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--muted)">Show NO book walk (how the fill is spread across price levels)</summary>
+        <div id="fillChips" style="margin:8px 0 0;overflow-x:auto"></div>
+      </details>
       <div id="fillVerdict" class="verdict"></div>
     </div>
   </div>
@@ -1130,7 +1132,7 @@ async function a1buildFillPlan(){
     const scaleRaw = cap0 > 0 ? target / cap0 : 0;  // raw units the balance would buy
     units = Math.floor(scaleRaw / step) * step;      // round DOWN to the exchange minimum
     sharesToBuy = N*100*units;                        // NO shares for the whole deployment
-    scopeLabel = 'Total capital'; scopeValue = `$${a1fmt(target,0)} total → ${a1fmt(units,step<1?2:0)} units (min step ${step}) → NO leg ${a1fmt(sharesToBuy,0)} sh`;
+    scopeLabel = 'Total capital'; scopeValue = `$${a1fmt(target,0)} total → ${a1fmt(units,step<1?2:0)} ${a1CUR.sym} (NO leg ${a1fmt(sharesToBuy,0)} sh)`;
   } else {
     sharesToBuy = null;                               // spend-based: spend exactly `target` $ on NO
     units = null;
@@ -1213,13 +1215,9 @@ async function a1buildFillPlan(){
   const kvRow = (label, val, cls) => `<tr><td style="color:var(--muted);padding:5px 14px 5px 0;white-space:nowrap">${label}</td><td style="text-align:right;font-weight:600" class="${cls||''}">${val}</td></tr>`;
   kv.innerHTML =
     `<table style="width:100%;border-collapse:collapse;font-size:14px">`+
-    kvRow('Strategy', `${strat==='manual'?'manual pick':'best combo'} · Put K $${a1fmt(Kp,0)} · NO K $${a1fmt(Kb,0)}`)+
+    kvRow('Strategy', `${strat==='manual'?'my own numbers':'auto'} · Put K $${a1fmt(Kp,0)} · NO K $${a1fmt(Kb,0)}`)+
     kvRow(scopeLabel, scopeValue)+
-    kvRow('NO midpoint (before fill)', `${a1fmt(no,1)}c`)+
-    kvRow('Blended NO price (after fill)', `${a1fmt(blendedC,2)}c`, blendedC>no?'neg':'pos')+
-    kvRow('NO shares bought', `${a1fmt(shares,0)}`)+
-    kvRow('NO $ actually spent', `$${a1fmt(cost,0)}${scope==='total'?' (NO leg of the $'+a1fmt(target,0)+' total)':' of $'+a1fmt(target,0)}`)+
-    kvRow('NO amount if win (gross)', `$${a1fmt(shares*1,2)}`)+
+    kvRow('NO price you’d pay (blended)', `${a1fmt(blendedC,2)}c`, blendedC>no?'neg':'pos')+
     kvRow('NO taker fee (on the win)', `−$${a1fmt(shares*(1 - a.noWinPer100/100),2)}`, 'neg')+
     kvRow('NO amount if win (net of fee)', `$${a1fmt(shares*a.noWinPer100/100,2)}`, 'pos')+
     kvRow('Floor (worst case)', `${sgn}$${a1fmt(Math.abs(a1money1k(a,a.minP)),2)}/$1k (${sgn}${a1fmt(Math.abs(a.minPct))}%)`, a.minP>=0?'pos':'neg')+
