@@ -264,7 +264,10 @@
     <div class="kv"><span><b>Worst-case return</b></span><b id="oMinPct" class="pct">—</b></div>
     <div class="kv"><span>Best-case P&amp;L per $1,000 (NO still wins — price → just below NO strike)</span><b id="oMax">—</b></div>
     <div class="kv"><span><b>Max return</b></span><b id="oMaxPct" class="pct">—</b></div>
-    <div class="kv"><span>Trading fees (spot 2× + put + NO entry)</span><b id="oFees" class="neg">—</b></div>
+    <div class="kv"><span>Trading fees (spot 2× + put, on entry)</span><b id="oFees" class="neg">—</b></div>
+    <div class="kv"><span>NO amount to buy (shares × price)</span><b id="oNoBuy">—</b></div>
+    <div class="kv"><span>NO taker fee (charged on the win, feePm)</span><b id="oNoFee" class="neg">—</b></div>
+    <div class="kv"><span>NO amount if win (net of fee)</span><b id="oNoWin">—</b></div>
     <div class="kv"><span><b>APY</b> (to 31 Dec 2026)</span><b id="oApy" class="big">—</b></div>
     <div class="verdict" id="oVerdict" style="display:none"></div>
   </div>
@@ -916,7 +919,7 @@ function a1calc(){
   const ready = spot>0 && Kp>0 && prem>0 && Kb>0 && no>0 && no<100 && N>=0;
 
   if (!ready){
-    ['oCap','oMin','oMinPct','oMax','oMaxPct','oApy','oFees'].forEach(id => $(id).textContent = '—');
+    ['oCap','oMin','oMinPct','oMax','oMaxPct','oApy','oFees','oNoBuy','oNoFee','oNoWin'].forEach(id => $(id).textContent = '—');
     $('oVerdict').style.display = 'none';
     a1lastA = null; a1renderTable(); a1drawChart(null); return;
   }
@@ -935,7 +938,10 @@ function a1calc(){
   $('oMaxPct').className = a.bestP>=0?'pos':'neg';
   $('oApy').textContent = (a.minP>=0?'+':'−')+a1fmt(Math.abs(apy))+'%';
   $('oApy').className = a.minP>=0?'pos':'neg';
-  $('oFees').textContent = '−$'+a1fmt(a1money1k(a, a.fees),2)+'  (spot −$'+a1fmt(a1money1k(a,a.fSpot),2)+' · put −$'+a1fmt(a1money1k(a,a.fPut),2)+' · NO −$'+a1fmt(a1money1k(a,a.fNo),2)+')';
+  $('oFees').textContent = '−$'+a1fmt(a1money1k(a, a.fSpot+a.fPut),2)+'  (spot −$'+a1fmt(a1money1k(a,a.fSpot),2)+' · put −$'+a1fmt(a1money1k(a,a.fPut),2)+')';
+  $('oNoBuy').textContent = '$'+a1fmt(a1money1k(a, N*no),2)+'  ('+a1fmt(N*100,0)+' shares × '+a1fmt(no/100,2)+')';
+  $('oNoFee').textContent = '−$'+a1fmt(a1money1k(a, a.fNo),2)+'  (feePm '+a1fmt(a1num('feePm')*100,2)+'% on the win)';
+  $('oNoWin').textContent = '$'+a1fmt(a1money1k(a, N*a.noWinPer100),2)+'  (gross $'+a1fmt(a1money1k(a, N*100),2)+' − fee)';
 
   const v = $('oVerdict');
   v.style.display = 'block';
