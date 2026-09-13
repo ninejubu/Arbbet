@@ -520,24 +520,31 @@ function a1analyze(spot, Kp, prem, Kb, no, N){
      put:  Bybit options fee, entry only (expires worthless or is covered — no sell trade).
            Bybit charges 0.03% of the underlying, capped at 12.5% of the premium:
            fPut = min(feePut% × spot, 12.5% × prem)
-     NO:   Polymarket taker fee on entry = N*100 shares × feePm × p×(1−p), p = no/100
-           (winning shares are redeemed at settlement — no fee) */
+     NO:   Polymarket taker fee is charged in the SHARES YOU RECEIVE (not extra cash):
+           buy N*100 shares at p=no/100 → you actually receive
+           N*100 × (1 − feePm × min(p, 1−p)) shares, each paying $1 on a win.
+           So the NO WIN is reduced by the fee. e.g. 980 sh @ 75c, rate 0.07:
+           980 × (1 − 0.07×0.25) = 980 × 0.9825 = 962.85 sh → $962.85 if it wins. */
+  const p = no/100;
   const fSpot = 2*(a1num('feeSpot')/100)*spot;
   const fPut  = Math.min((a1num('feePut')/100)*spot, 0.125*prem);
-  const fNo   = N*100*a1num('feePm')*(no/100)*(1-no/100);  // feePm is the rate itself (0.07), not a %
-  const fees  = fSpot + fPut + fNo;
-  const payoff = S => (S - spot) + Math.max(Kp - S, 0) + (S < Kb ? N*(100-no) : -N*no) - prem - fees;
-  const Nmin = (100-no) > 0 ? Math.max(0, (spot + prem - Kp + fees)/(100 - no)) : Infinity;
+  const noWinPer100 = 100*(1 - a1num('feePm')*Math.min(p, 1-p));  // $ per 100 shares on a win, net of fee
+  const noFee = N*(100 - noWinPer100);   // the NO taker fee (the win reduction)
+  const cashFees = fSpot + fPut;         // actual cash fees (NO fee is embedded in the win)
+  const fees  = cashFees + noFee;        // total fee value (for display)
+  const payoff = S => (S - spot) + Math.max(Kp - S, 0) + (S < Kb ? N*(noWinPer100 - no) : -N*no) - prem - cashFees;
+  const denomMin = noWinPer100 - no;
+  const Nmin = denomMin > 0 ? Math.max(0, (spot + prem - Kp + cashFees)/denomMin) : Infinity;
   const Sref = Math.max(Kb, Kp);
-  const Nmax = (no > 0 && Sref > spot + prem + fees) ? (Sref - spot - prem - fees)/no : 0;
+  const Nmax = (no > 0 && Sref > spot + prem + cashFees) ? (Sref - spot - prem - cashFees)/no : 0;
   const feasible = Nmax > Nmin && Nmax > 0 && capital > 0;
   const minP = (Kp <= Kb)
-    ? Math.min(Kp - spot - prem + N*(100-no), Kb - spot - prem - N*no) - fees
-    : Kp - spot - prem - N*no - fees;
-  const bestP = Sref - spot + N*(100-no) - prem - fees;
+    ? Math.min(Kp - spot - prem + N*(noWinPer100 - no), Kb - spot - prem - N*no) - cashFees
+    : Kp - spot - prem - N*no - cashFees;
+  const bestP = Sref - spot + N*(noWinPer100 - no) - prem - cashFees;
   return {capital, payoff, Nmin, Nmax, feasible, minP, minPct: capital>0 ? minP/capital*100 : NaN,
           bestP, bestPct: capital>0 ? bestP/capital*100 : NaN, bestAt: Kb,
-          fees, fSpot, fPut, fNo};
+          fees, fSpot, fPut, fNo: noFee, noWinPer100};
 }
 function a1suggestN(spot, Kp, Kb, no, Nmin, Nmax){
   if (!(Nmax > Nmin) || Nmax <= 0) return null;
@@ -977,7 +984,7 @@ function a1drawChart(a){
     let v = 0;
     if (useSpot) v += (S - spot) - a.fSpot;
     if (usePut)  v += Math.max(Kp - S, 0) - prem - a.fPut;
-    if (useNo)   v += (S < Kb ? N*(100-no) : -N*no) - a.fNo;
+    if (useNo)   v += (S < Kb ? N*(a.noWinPer100 - no) : -N*no);  // NO win already net of taker fee
     return v;
   };
   const xs=[], ys=[];
@@ -1171,6 +1178,9 @@ async function a1buildFillPlan(){
     kvRow('Blended NO price (after fill)', `${a1fmt(blendedC,2)}c`, blendedC>no?'neg':'pos')+
     kvRow('NO shares bought', `${a1fmt(shares,0)}`)+
     kvRow('NO $ actually spent', `$${a1fmt(cost,0)}${scope==='total'?' (NO leg of the $'+a1fmt(target,0)+' total)':' of $'+a1fmt(target,0)}`)+
+    kvRow('NO amount if win (gross)', `$${a1fmt(shares*1,2)}`)+
+    kvRow('NO taker fee (on the win)', `−$${a1fmt(shares*(1 - a.noWinPer100/100),2)}`, 'neg')+
+    kvRow('NO amount if win (net of fee)', `$${a1fmt(shares*a.noWinPer100/100,2)}`, 'pos')+
     kvRow('Floor (worst case)', `${sgn}$${a1fmt(Math.abs(a1money1k(a,a.minP)),2)}/$1k (${sgn}${a1fmt(Math.abs(a.minPct))}%)`, a.minP>=0?'pos':'neg')+
     kvRow('APY (blended)', `${sgn}${a1fmt(Math.abs(apy))}%`, a.minP>=0?'pos':'neg')+
     `</table>`;
