@@ -313,6 +313,7 @@
       <label style="cursor:pointer"><input type="checkbox" id="legPut" checked onchange="a1drawChart(a1lastA)"> Long put</label>
       <label style="cursor:pointer"><input type="checkbox" id="legNo" checked onchange="a1drawChart(a1lastA)"> Bet NO</label>
       <span id="legNote" style="color:var(--muted);font-size:12px"></span>
+      <span style="color:var(--muted);font-size:12px">· hover the graph to read any price</span>
     </div>
     <canvas id="chart" width="1160" height="340"></canvas>
   </div>
@@ -968,6 +969,7 @@ function a1drawChart(a){
   const cv = $('chart'), ctx = cv.getContext('2d');
   const W = cv.width, H = cv.height, L=70, R=20, T=20, B=40;
   ctx.clearRect(0,0,W,H);
+  window.a1chart = null;   // (a1hover is preserved so the crosshair survives the redraw)
   if (!a){
     ctx.fillStyle='#8b949e'; ctx.font='14px sans-serif';
     ctx.fillText('Fill in spot, put and NO bet to draw the payoff curve.', L, H/2);
@@ -1007,6 +1009,7 @@ function a1drawChart(a){
   const pad=(yMax-yMin)*0.08 || 1;
   const X = s => L + (s-xMin)/(xMax-xMin)*(W-L-R);
   const Y = v => T + (yMax+pad - v)/(yMax+pad-yMin+pad)*(H-T-B);
+  window.a1chart = {xMin, xMax, sfC, spot, Kp, Kb, N, prem, no, useSpot, usePut, useNo, capital: a.capital};
   ctx.strokeStyle='#2d3644'; ctx.lineWidth=1; ctx.font='11px sans-serif'; ctx.fillStyle='#8b949e';
   for (let g=0; g<=5; g++){
     const v = yMin+pad + (yMax-yMin+2*pad)*g/5;
@@ -1040,6 +1043,46 @@ function a1drawChart(a){
   ctx.strokeStyle='#f85149'; ctx.lineWidth=2; ctx.stroke();
   ctx.fillStyle='#f0f6fc'; ctx.font='bold 12px sans-serif';
   ctx.fillText(`worst case: ${a1CUR.sym} $${a1fmt(xs[minI],0)} → ${ys[minI]>=0?'+':'−'}$${a1fmt(Math.abs(ys[minI]),0)}/$1k`, X(xs[minI])+10, Y(ys[minI])-10);
+
+  // ---- hover crosshair: show the price + P&L under the cursor ----
+  const S = window.a1hover;
+  if (S != null && S >= xMin && S <= xMax){
+    const v = legPayoff(S)*sfC;                 // P&L at S, per $1,000
+    const x = X(S), y = Y(v);
+    ctx.save();
+    ctx.strokeStyle='#58a6ff'; ctx.lineWidth=1; ctx.setLineDash([5,4]); ctx.globalAlpha=.85;
+    ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, H-B); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(W-R, y); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+    ctx.fillStyle='#f0f6fc'; ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill();
+    ctx.strokeStyle='#58a6ff'; ctx.lineWidth=2; ctx.stroke();
+    // tooltip lines
+    const pct = v/10;                            // per-$1k → % of capital
+    const sgn = v>=0?'+':'−';
+    const lines = [
+      a1CUR.sym+' $'+a1fmt(S,0),
+      sgn+'$'+a1fmt(Math.abs(v),2)+' / $1k  ('+sgn+a1fmt(Math.abs(pct),2)+'%)'
+    ];
+    const legs = [];
+    if (useSpot) legs.push('spot '+((S-spot)-a.fSpot>=0?'+':'−')+a1fmt(Math.abs(((S-spot)-a.fSpot)*sfC),0));
+    if (usePut)  legs.push('put '+(Math.max(Kp-S,0)-prem-a.fPut>=0?'+':'−')+a1fmt(Math.abs((Math.max(Kp-S,0)-prem-a.fPut)*sfC),0));
+    if (useNo)   legs.push('NO '+((S<Kb?N*(a.noWinPer100-no):-N*no)>=0?'+':'−')+a1fmt(Math.abs((S<Kb?N*(a.noWinPer100-no):-N*no)*sfC),0));
+    if (legs.length) lines.push(legs.join('  ·  '));
+    ctx.font='bold 12px sans-serif';
+    let bw=0; for (const ln of lines) bw=Math.max(bw, ctx.measureText(ln).width);
+    bw+=20; const bh=lines.length*16+12;
+    let bx=x+12, by=y-bh-8;
+    if (bx+bw>W-R) bx=x-bw-12;
+    if (by<T) by=y+12;
+    ctx.fillStyle='rgba(13,17,23,.92)'; ctx.strokeStyle='#58a6ff'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,6); ctx.fill(); ctx.stroke();
+    lines.forEach((ln,i)=>{
+      ctx.font = i===0?'bold 12px sans-serif':'11px sans-serif';
+      ctx.fillStyle = i===0?'#58a6ff':(i===1?(v>=0?'#3fb950':'#f85149'):'#8b949e');
+      ctx.fillText(ln, bx+10, by+18+i*16);
+    });
+    ctx.restore();
+  }
 }
 
 /* put-symbol test: Bybit 'ETH-25DEC26-2500-P-USDT' (type at index 3) or GLD 'GLD-DEC26-480-P' (type at end) */
@@ -1769,6 +1812,26 @@ async function ccrefreshAll(){
 }
 cccalc();
 ccloadCC();
+
+/* ---------- payoff chart hover: show the price + P&L under the cursor ---------- */
+function a1chartHover(ev){
+  const cv = $('chart');
+  const c = window.a1chart;
+  if (!c){ window.a1hover = null; a1drawChart(a1lastA); return; }
+  const rect = cv.getBoundingClientRect();
+  const px = (ev.clientX - rect.left) * (cv.width / rect.width);
+  const L=70, R=20, T=20, B=40, W=cv.width, H=cv.height;
+  if (px < L || px > W-R){ window.a1hover = null; a1drawChart(a1lastA); return; }
+  const S = c.xMin + (px - L)/(W-L-R) * (c.xMax - c.xMin);
+  window.a1hover = S;
+  a1drawChart(a1lastA);
+}
+
+(function(){
+  const cv = $('chart');
+  cv.addEventListener('mousemove', a1chartHover);
+  cv.addEventListener('mouseleave', () => { window.a1hover = null; a1drawChart(a1lastA); });
+})();
 
 </script>
 </body>
