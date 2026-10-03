@@ -1204,27 +1204,17 @@ function a1renderNoScenario(){
   const box = $('noScenario');
   if (!a1noScenario){ box.style.display = 'none'; box.innerHTML = ''; return; }
   const spot = a1num('spot');
-  // Rebuild the same entry list the sweep table shows, with each row's best combo.
-  const [lo, hi, step] = a1sweepBounds();
-  const below = Math.min(2, Math.floor(lo/step));
-  const rows = [];
-  for (let i = below; i >= 1; i--) rows.push(lo - i*step);
-  for (let s = lo; s <= hi; s += step) rows.push(s);
+  // Same entry list the sweep table shows: 2 grid points below + 2 above the current price.
+  const rows = a1sweepWindowRows();
   const combos = rows.map(s => a1bestCombo(s));
   const feas = combos.map(b => b != null);
-  const hasFeas = feas.some(Boolean);
-  const show = rows.map((s, i) => {
-    if (!hasFeas) return i === below;
-    if (feas[i]) return true;
-    return (i > 0 && feas[i-1]) || (i < feas.length-1 && feas[i+1]);
-  });
   const items = [];
   if (spot > 0){
     const b = a1bestCombo(spot);
     if (b) items.push({label:'now $'+a1fmt(spot,2), s:spot, b});
   }
   for (let i = 0; i < rows.length; i++){
-    if (!show[i] || !feas[i]) continue;
+    if (!feas[i]) continue;
     items.push({label:'$'+rows[i].toLocaleString(), s:rows[i], b:combos[i]});
   }
   if (!items.length){
@@ -1255,9 +1245,9 @@ function a1renderNoScenario(){
     return `<tr>
       <td>${label}</td>
       <td>$${b.m.k.toLocaleString()} @ ${a1fmt(b.m.no,1)}c</td>
-      <td class="${c0.neg?'neg':'pos'}">${c0.neg?c0.neg+' / 501':'0 / 501'}</td>
+      <td class="${c0.neg?'neg':'pos'}">${c0.neg?c0.neg+' of 501':'0 of 501'}</td>
       <td>$${nxt.k.toLocaleString()} @ ${a1fmt(nxt.no,1)}c</td>
-      <td class="${c1.neg?'neg':'pos'}">${c1.neg?c1.neg+' / 501':'0 / 501'}</td>
+      <td class="${c1.neg?'neg':'pos'}">${c1.neg?c1.neg+' of 501':'0 of 501'}</td>
       <td class="${a1n.minP>=0?'pos':'neg'}">${a1n.minP>=0?'+':'−'}$${a1fmt(Math.abs(a1money1k(a1n, a1n.minP)),2)}</td>
     </tr>`;
   }).join('');
@@ -1273,13 +1263,13 @@ function a1renderNoScenario(){
   box.innerHTML = `<h4>Next NO price scenario — NO K $${nxt.k.toLocaleString()} @ ${a1fmt(nxt.no,1)}c (next strike) · all ${items.length} entries</h4>
     <table class="scTable">
       <thead><tr>
-        <th>Entry</th><th>NO K (current)</th><th>Neg prices</th>
-        <th>NO K (next)</th><th>Neg prices</th><th>Next worst / $1k</th>
+        <th>Entry</th><th>NO K (current)</th><th>Losing prices</th>
+        <th>NO K (next)</th><th>Losing prices</th><th>Worst / $1k</th>
       </tr></thead>
       <tbody>${trs}</tbody>
     </table>
     <div class="scVerdict ${vcls}">${verdict}</div>
-    <div class="scNote">Same entry, put and N — only the NO strike/price changes. "Neg prices" = how many of 501 settlement prices (from $${a1fmt(xMin,0)} to $${a1fmt(xMax,0)}, net of fees) turn negative. The "next" strike is the next listed Polymarket market above the live-spot row's NO K (live price).</div>`;
+    <div class="scNote">Same entry, put and N — only the NO strike/price changes. <b>Losing prices</b> = how many of the 501 possible ETH prices at settlement (from $${a1fmt(xMin,0)} to $${a1fmt(xMax,0)}, net of fees) would make you lose money. <b>0 of 501</b> = never loses (always positive). The "next" strike is the next listed Polymarket market above the live-spot row's NO K (live price).</div>`;
 }
 
 /* ---------- NO liquidity fill plan: walk the REAL Polymarket NO ask book ----------
@@ -1449,39 +1439,33 @@ function a1sweepBounds(){
   const hi = lo + 11*step;
   return [lo, hi, step];
 }
+function a1sweepWindowRows(){
+  // Entry prices to show: 2 grid points below + 2 above the current price.
+  // e.g. spot 2680, step 100 -> 2500, 2600, 2700, 2800 (the 2680 "now" row is separate).
+  const step = a1CUR.sweep[2];
+  const spot = a1num('spot');
+  if (!(spot > 0)) return [];
+  const lo = Math.floor(spot/step)*step;
+  const below = [];
+  let g = (lo < spot) ? lo : lo - step;   // first grid point strictly below spot
+  while (g > 0 && below.length < 2){ below.push(g); g -= step; }
+  const above = [lo + step, lo + 2*step]; // two grid points strictly above spot
+  return below.slice().reverse().concat(above);
+}
 function a1renderSweep(){
   if (a1noEditState) return;  // don't clobber an open inline editor
   const tb = $('sweepTable').querySelector('tbody');
   tb.innerHTML = '';
   const days = a1num('days') || 1;
-  const [lo, hi, step] = a1sweepBounds();
+  const step = a1CUR.sweep[2];
+  const spot = a1num('spot');
   $('sweepTitle').textContent = 'Entry sweep';
   $('sink').innerHTML = (a1CUR.sym==='GLD'
     ? `Premium = GLD put ask (USD, embedded CBOE snapshot — refresh via the paste box), NO = live Polymarket GC (50–90c only). `
     : `Premium = live Bybit ask (USD, cash-settled USDT), NO = live Polymarket (50–90c only). `)
-    + `<b>now</b> row = exact live spot — same entry as the Feasibility summary &amp; main panels. Grid below = what-if entries at $${step.toLocaleString()} points, showing only <b>feasible</b> rows plus the <b>nearest infeasible boundary</b> (where feasibility breaks) — the rest are hidden. <b>✎</b> = override a NO price when the live quote is stale/thin. <b>→ NO $X</b> (top right) = test the <b>next NO strike</b> across <b>every entry</b>: same put, but buy the NO one strike higher — the panel below counts how many price levels turn negative for each entry, proving that strike is not an always-positive entry. P&amp;L is <b>net of trading fees</b>. INFEASIBLE = no N keeps the return positive at every price.`;
-  const spot = a1num('spot');
-  const below = Math.min(2, Math.floor(lo/step));  // up to 2 rows below the start, not below 0
-  const rows = [];
-  for (let i = below; i >= 1; i--) rows.push(lo - i*step);  // strictly-below rows only (lo comes from the main loop)
-  for (let s = lo; s <= hi; s += step) rows.push(s);
-  // Precompute the best combo for every grid row, then filter: show all
-  // FEASIBLE entries + the infeasible rows that border the feasible range
-  // (the nearest infeasible on each side, where feasibility breaks). All
-  // other infeasible rows are hidden.
-  //   e.g. 2200-2400 feasible, 2500+ infeasible -> show 2200,2300,2400,2500
-  //   (2500 = upper boundary; 2600-3500 hidden).
-  //   If 3000-3100 are feasible again -> show 2200,2300,2400,2500,3000,3100,3200
-  //   (2500 + 3200 = boundaries; the 2600-2900 gap hidden).
+    + `<b>now</b> row = exact live spot — same entry as the Feasibility summary &amp; main panels. Grid below = entry prices $${step.toLocaleString()} below and above the current price (2 each). <b>✎</b> = override a NO price when the live quote is stale/thin. <b>→ NO $X</b> (top right) = test the <b>next NO strike</b> across <b>every entry</b>: same put, but buy the NO one strike higher — the panel below counts how many price levels turn negative for each entry, proving that strike is not an always-positive entry. P&amp;L is <b>net of trading fees</b>. INFEASIBLE = no N keeps the return positive at every price.`;
+  const rows = a1sweepWindowRows();
   const combos = rows.map(s => a1bestCombo(s));
-  const feas = combos.map(b => b != null);
-  const hasFeas = feas.some(Boolean);
-  const show = rows.map((s, i) => {
-    if (!hasFeas) return i === below;        // nothing feasible: show only the row nearest the spot
-    if (feas[i]) return true;                // show every feasible entry
-    // infeasible: show only if it borders a feasible row (boundary on either side)
-    return (i > 0 && feas[i-1]) || (i < feas.length-1 && feas[i+1]);
-  });
   const renderRow = (s, label, isNow, pre) => {
     const b = pre !== undefined ? pre : a1bestCombo(s);
     const tr = document.createElement('tr');
@@ -1501,13 +1485,12 @@ function a1renderSweep(){
   // Top row: exact live spot — the real "now", matches the Feasibility summary (always shown)
   if (spot > 0) renderRow(spot, `now $${a1fmt(spot,2)}`, true);
   for (let i = 0; i < rows.length; i++){
-    if (!show[i]) continue;  // all-infeasible case: show[0] (lo, nearest spot) is the only true
     renderRow(rows[i], `$${rows[i].toLocaleString()}`, false, combos[i]);
   }
   // Stash the "next NO strike" info for the single button near the title, then draw it.
   let base = null;
   if (spot > 0){ const b = a1bestCombo(spot); if (b) base = b; }
-  if (!base){ const i = feas.findIndex(Boolean); if (i >= 0) base = combos[i]; }
+  if (!base){ const i = combos.findIndex(b => b != null); if (i >= 0) base = combos[i]; }
   const nxt = base ? a1nextNoStrike(base) : null;
   a1sweepNext = (base && nxt) ? {k: nxt.k, no: nxt.no, base} : null;
   a1renderSweepBtn();
