@@ -62,6 +62,9 @@
   .noNextBtn{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:0 6px;font-size:11px;cursor:pointer;margin-left:6px;line-height:16px;white-space:nowrap}
   .noNextBtn:hover{color:var(--accent);border-color:var(--accent)}
   .noNextBtn.on{color:#0d1117;background:var(--accent);border-color:var(--accent);font-weight:700}
+  .sweepHead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .sweepHead h2{margin:0}
+  .sweepHead .noNextBtn{font-size:13px;padding:5px 12px;line-height:20px;margin-left:0;border-width:1px}
   .noOverride{color:var(--accent);font-weight:700}
   .noEditInput{width:74px;padding:2px 5px;font-size:12px;}
   tr.now td{background:rgba(77,163,255,.10)}
@@ -308,11 +311,14 @@
   </div>
 
   <div class="card wide">
-    <h2 id="sweepTitle">Entry sweep — best always-positive combo if <span class="sym">ETH</span> is at $2,400–$3,500 today</h2>
+    <div class="sweepHead">
+      <h2 id="sweepTitle">Entry sweep — best always-positive combo</h2>
+      <div id="sweepNextBtn"></div>
+    </div>
     <table id="sweepTable">
       <thead><tr>
         <th>Entry</th><th>Put K</th><th>Prem $</th><th>NO K</th><th>NO c</th><th>N</th>
-        <th>Min P&amp;L / $1k</th><th>Min ret</th><th>Best P&amp;L / $1k</th><th>Max ret</th><th>APY</th><th>Next NO</th>
+        <th>Min P&amp;L / $1k</th><th>Min ret</th><th>Best P&amp;L / $1k</th><th>Max ret</th><th>APY</th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -836,7 +842,7 @@ function a1noMarketsEff(){ return a1noMarkets.map(m => a1noOverrides[m.kDisplay]
 function a1setNoOverride(kDisplay, price){
   if (price == null || !(price > 0 && price < 100)) delete a1noOverrides[kDisplay];
   else a1noOverrides[kDisplay] = price;
-  a1noScenario = null;  // NO prices changed — any open scenario is stale
+  a1noScenario = false;  // NO prices changed — any open scenario is stale
   const m = a1noMarkets.find(x => x.kDisplay === kDisplay);
   if (m && a1num('betK') === m.k){
     $('noRate').value = a1noPriceFor(m).toFixed(2);
@@ -845,7 +851,7 @@ function a1setNoOverride(kDisplay, price){
   a1renderSweep(); a1calc();
 }
 function a1resetNoPrice(e, kDisplay){ e.stopPropagation(); a1setNoOverride(kDisplay, null); }
-function a1clearAllNoOverrides(){ a1noOverrides = {}; a1noScenario = null; a1renderSweep(); a1calc(); }
+function a1clearAllNoOverrides(){ a1noOverrides = {}; a1noScenario = false; a1renderSweep(); a1calc(); }
 function a1updateOverrideBadge(){
   const n = Object.keys(a1noOverrides).length;
   const b = $('sink');
@@ -1154,12 +1160,13 @@ function a1bestComboAny(s){ return a1bestComboAnyAt(s, a1books, a1noMarketsEff()
 /* ---------- "Next NO price" scenario ----------
    The sweep's green rows use the NO strike that keeps P&L positive at every
    price. To prove that is NOT a coincidence of one strike (e.g. the $3,500
-   quote), each feasible row gets a button for the NEXT NO strike up
-   (NO K $3,500 -> $4,000). Clicking it re-runs the same strategy (same entry,
-   put, N) at the next strike's live price and counts how many settlement
-   prices go negative. If any price goes negative, the higher NO price is
-   INFEASIBLE — only the lower NO price is the never-negative entry. */
-let a1noScenario = null;  // {entry, b} for the open scenario box
+   quote), a single button near the title tests the NEXT NO strike up
+   (NO K $3,500 -> $4,000). Clicking it re-runs every feasible entry at the
+   next strike's live price and counts how many settlement prices go negative
+   for each. If any price goes negative, the higher NO price is INFEASIBLE —
+   only the lower NO price is the never-negative entry. */
+let a1noScenario = false;  // true while the "Next NO" scenario box is open
+let a1sweepNext = null;    // {k, no, base} for the single "next NO" button near the title
 function a1nextNoStrike(b){
   if (!b) return null;
   const nms = a1noMarketsEff();  // sorted ascending by strike
@@ -1179,55 +1186,100 @@ function a1negCount(a, spot, Kp, Kb){
   }
   return {neg, worst, xMin, xMax};
 }
-function a1toggleNoScenario(e, entry, Kp, kDisplay){
+function a1toggleNoScenario(e){
   e.stopPropagation();
-  const b = a1bestCombo(entry);  // same books/overrides the row was rendered with
-  if (!b || b.m.kDisplay !== kDisplay || b.Kp !== Kp) return;  // stale row
-  const key = entry + '|' + Kp + '|' + kDisplay;
-  if (a1noScenario && a1noScenario.key === key){  // click again -> close
-    a1noScenario = null; a1renderNoScenario(); return;
-  }
-  a1noScenario = {key, entry, b};
+  a1noScenario = !a1noScenario;
   a1renderNoScenario();
+  a1renderSweepBtn();
+}
+function a1renderSweepBtn(){
+  const host = $('sweepNextBtn');
+  if (!host) return;
+  const info = a1sweepNext;
+  if (!info){ host.innerHTML = ''; return; }
+  const on = a1noScenario ? ' on' : '';
+  host.innerHTML = `<button class="noNextBtn${on}" onclick="a1toggleNoScenario(event)" title="Test the next NO strike ($${info.k.toLocaleString()}): re-runs every entry with the NO one strike higher and counts how many price levels turn negative — proof that $${info.k.toLocaleString()} is not an always-positive entry.">→ NO $${info.k.toLocaleString()}</button>`;
 }
 function a1renderNoScenario(){
   const box = $('noScenario');
-  document.querySelectorAll('.noNextBtn.on').forEach(x => x.classList.remove('on'));
   if (!a1noScenario){ box.style.display = 'none'; box.innerHTML = ''; return; }
-  const {entry, b} = a1noScenario;
-  const nxt = a1nextNoStrike(b);
-  if (!nxt){
-    a1noScenario = null;
+  const spot = a1num('spot');
+  // Rebuild the same entry list the sweep table shows, with each row's best combo.
+  const [lo, hi, step] = a1sweepBounds();
+  const below = Math.min(2, Math.floor(lo/step));
+  const rows = [];
+  for (let i = below; i >= 1; i--) rows.push(lo - i*step);
+  for (let s = lo; s <= hi; s += step) rows.push(s);
+  const combos = rows.map(s => a1bestCombo(s));
+  const feas = combos.map(b => b != null);
+  const hasFeas = feas.some(Boolean);
+  const show = rows.map((s, i) => {
+    if (!hasFeas) return i === below;
+    if (feas[i]) return true;
+    return (i > 0 && feas[i-1]) || (i < feas.length-1 && feas[i+1]);
+  });
+  const items = [];
+  if (spot > 0){
+    const b = a1bestCombo(spot);
+    if (b) items.push({label:'now $'+a1fmt(spot,2), s:spot, b});
+  }
+  for (let i = 0; i < rows.length; i++){
+    if (!show[i] || !feas[i]) continue;
+    items.push({label:'$'+rows[i].toLocaleString(), s:rows[i], b:combos[i]});
+  }
+  if (!items.length){
+    a1noScenario = false;
     box.style.display = 'block';
-    box.innerHTML = `<h4>Next NO price — entry $${entry.toLocaleString()}</h4>
+    box.innerHTML = `<h4>Next NO price scenario</h4>
+      <div class="scVerdict bad">No feasible entry right now, so there is no NO strike to test.</div>`;
+    return;
+  }
+  // The "next" strike is the one above the NO K the live-spot row uses.
+  const base = items[0].b;
+  const nxt = a1nextNoStrike(base);
+  if (!nxt){
+    a1noScenario = false;
+    box.style.display = 'block';
+    box.innerHTML = `<h4>Next NO price scenario</h4>
       <div class="scVerdict bad">No higher NO strike is listed (this is the top of the 50–90c market range), so there is no "next price" to test.</div>`;
     return;
   }
-  const a0 = a1analyze(entry, b.Kp, b.prem, b.m.k, b.m.no, b.N);
-  const a1n = a1analyze(entry, b.Kp, b.prem, nxt.k, nxt.no, b.N);
-  const c0 = a1negCount(a0, entry, b.Kp, b.m.k), c1 = a1negCount(a1n, entry, b.Kp, nxt.k);
-  const boxRow = (label, a, c) => `<div class="scBox"><span>${label}</span>
-      <b class="${a.minP>=0?'pos':'neg'}">${a.minP>=0?'+':'−'}$${a1fmt(Math.abs(a1money1k(a, a.minP)),2)} /$1k</b>
-      <span>worst case · ${c.neg} of 501 prices negative</span></div>`;
+  let anyNeg = 0, allNeg = true, xMin = Infinity, xMax = -Infinity;
+  const trs = items.map(({label, s, b}) => {
+    const a0 = a1analyze(s, b.Kp, b.prem, b.m.k, b.m.no, b.N);
+    const a1n = a1analyze(s, b.Kp, b.prem, nxt.k, nxt.no, b.N);
+    const c0 = a1negCount(a0, s, b.Kp, b.m.k), c1 = a1negCount(a1n, s, b.Kp, nxt.k);
+    xMin = Math.min(xMin, c1.xMin); xMax = Math.max(xMax, c1.xMax);
+    if (c1.neg > 0) anyNeg++;
+    if (c1.neg === 0) allNeg = false;
+    return `<tr>
+      <td>${label}</td>
+      <td>$${b.m.k.toLocaleString()} @ ${a1fmt(b.m.no,1)}c</td>
+      <td class="${c0.neg?'neg':'pos'}">${c0.neg?c0.neg+' / 501':'0 / 501'}</td>
+      <td>$${nxt.k.toLocaleString()} @ ${a1fmt(nxt.no,1)}c</td>
+      <td class="${c1.neg?'neg':'pos'}">${c1.neg?c1.neg+' / 501':'0 / 501'}</td>
+      <td class="${a1n.minP>=0?'pos':'neg'}">${a1n.minP>=0?'+':'−'}$${a1fmt(Math.abs(a1money1k(a1n, a1n.minP)),2)}</td>
+    </tr>`;
+  }).join('');
   let verdict, vcls;
-  if (c1.neg === 0 && a1n.minP > 0){
-    verdict = `✓ NO at $${nxt.k.toLocaleString()} is ALSO always-positive — the strategy survives the higher NO price.`;
+  if (anyNeg === 0){
+    verdict = `✓ NO at $${nxt.k.toLocaleString()} is ALSO always-positive at every entry — the strategy survives the higher NO price.`;
     vcls = 'ok';
   } else {
-    verdict = `✗ INFEASIBLE — NO at $${nxt.k.toLocaleString()} (${a1fmt(nxt.no,1)}c) makes P&L negative at ${c1.neg} of 501 settlement prices (worst −$${a1fmt(Math.abs(a1money1k(a1n, a1n.minP)),2)}/$1k). Only the lower NO price keeps every price positive.`;
+    verdict = `✗ INFEASIBLE — NO at $${nxt.k.toLocaleString()} (${a1fmt(nxt.no,1)}c) makes P&L negative at ${anyNeg} of ${items.length} entries. Only the lower NO price keeps every price positive.`;
     vcls = 'bad';
   }
   box.style.display = 'block';
-  box.innerHTML = `<h4>Next NO price scenario — entry $${entry.toLocaleString()} · Put K $${b.Kp.toLocaleString()} · N ${a1fmt(b.N,1)}</h4>
-    <div class="scGrid">
-      ${boxRow(`NO K $${b.m.k.toLocaleString()} @ ${a1fmt(b.m.no,1)}c (current)`, a0, c0)}
-      ${boxRow(`NO K $${nxt.k.toLocaleString()} @ ${a1fmt(nxt.no,1)}c (next)`, a1n, c1)}
-      <div class="scBox"><span>Safe N range (next strike)</span>
-        <b>${a1n.feasible ? a1fmt(a1n.Nmin,1)+' &lt; N &lt; '+a1fmt(a1n.Nmax,1) : 'none'}</b>
-        <span>${a1n.feasible ? 'an N exists that stays positive' : 'no N keeps it positive at every price'}</span></div>
-    </div>
+  box.innerHTML = `<h4>Next NO price scenario — NO K $${nxt.k.toLocaleString()} @ ${a1fmt(nxt.no,1)}c (next strike) · all ${items.length} entries</h4>
+    <table class="scTable">
+      <thead><tr>
+        <th>Entry</th><th>NO K (current)</th><th>Neg prices</th>
+        <th>NO K (next)</th><th>Neg prices</th><th>Next worst / $1k</th>
+      </tr></thead>
+      <tbody>${trs}</tbody>
+    </table>
     <div class="scVerdict ${vcls}">${verdict}</div>
-    <div class="scNote">Same entry, put and N — only the NO strike/price changes. P&amp;L sampled at 501 settlement prices from $${a1fmt(c1.xMin,0)} to $${a1fmt(c1.xMax,0)}, net of fees. The "next" strike is the next listed Polymarket market above the row's NO K (live price).</div>`;
+    <div class="scNote">Same entry, put and N — only the NO strike/price changes. "Neg prices" = how many of 501 settlement prices (from $${a1fmt(xMin,0)} to $${a1fmt(xMax,0)}, net of fees) turn negative. The "next" strike is the next listed Polymarket market above the live-spot row's NO K (live price).</div>`;
 }
 
 /* ---------- NO liquidity fill plan: walk the REAL Polymarket NO ask book ----------
@@ -1403,11 +1455,11 @@ function a1renderSweep(){
   tb.innerHTML = '';
   const days = a1num('days') || 1;
   const [lo, hi, step] = a1sweepBounds();
-  $('sweepTitle').innerHTML = `Entry sweep — best always-positive combo if <span class="sym">${a1CUR.sym}</span> is at $${lo.toLocaleString()}–$${hi.toLocaleString()} today`;
+  $('sweepTitle').textContent = 'Entry sweep — best always-positive combo';
   $('sink').innerHTML = (a1CUR.sym==='GLD'
     ? `Premium = GLD put ask (USD, embedded CBOE snapshot — refresh via the paste box), NO = live Polymarket GC (50–90c only). `
     : `Premium = live Bybit ask (USD, cash-settled USDT), NO = live Polymarket (50–90c only). `)
-    + `<b>now</b> row = exact live spot — same entry as the Feasibility summary &amp; main panels. Grid below = what-if entries at $${step.toLocaleString()} points, showing only <b>feasible</b> rows plus the <b>nearest infeasible boundary</b> (where feasibility breaks) — the rest are hidden. <b>✎</b> = override a NO price when the live quote is stale/thin. <b>→ $X</b> = test the <b>next NO strike</b>: same put, but buy the NO one strike higher — the panel below counts how many price levels turn negative, proving that strike is not an always-positive entry. P&amp;L is <b>net of trading fees</b>. INFEASIBLE = no N keeps the return positive at every price.`;
+    + `<b>now</b> row = exact live spot — same entry as the Feasibility summary &amp; main panels. Grid below = what-if entries at $${step.toLocaleString()} points, showing only <b>feasible</b> rows plus the <b>nearest infeasible boundary</b> (where feasibility breaks) — the rest are hidden. <b>✎</b> = override a NO price when the live quote is stale/thin. <b>→ NO $X</b> (top right) = test the <b>next NO strike</b> across <b>every entry</b>: same put, but buy the NO one strike higher — the panel below counts how many price levels turn negative for each entry, proving that strike is not an always-positive entry. P&amp;L is <b>net of trading fees</b>. INFEASIBLE = no N keeps the return positive at every price.`;
   const spot = a1num('spot');
   const below = Math.min(2, Math.floor(lo/step));  // up to 2 rows below the start, not below 0
   const rows = [];
@@ -1436,16 +1488,11 @@ function a1renderSweep(){
     if (isNow) tr.className = 'now';
     if (b){
       const ov = a1noOverrides[b.m.kDisplay] != null;
-      const next = a1nextNoStrike(b);
-      const onCls = (a1noScenario && a1noScenario.key === s + '|' + b.Kp + '|' + b.m.kDisplay) ? ' on' : '';
-      const nextBtn = next
-        ? `<button class="noNextBtn${onCls}" onclick="a1toggleNoScenario(event, ${s}, ${b.Kp}, ${b.m.kDisplay})" title="Same put, but buy the NO at the next higher strike ($${next.k.toLocaleString()}). Shows how many price levels turn negative — proof that $${next.k.toLocaleString()} is not an always-positive entry.">→ $${next.k.toLocaleString()}</button>`
-        : '';
       tr.innerHTML = `<td>${label}</td><td>$${b.Kp.toLocaleString()}</td><td>$${a1fmt(b.prem,0)}</td>
         <td>$${b.m.k.toLocaleString()}</td><td><span class="${ov?'noOverride':''}">${a1fmt(b.m.no,1)}c</span><button class="noEditBtn" onclick="a1editNoPrice(event, ${b.m.kDisplay})" title="Edit NO price (live quote may be stale/thin)">✎</button>${ov?`<button class="noEditBtn" onclick="a1resetNoPrice(event, ${b.m.kDisplay})" title="Reset to live price">×</button>`:''}</td><td>${a1fmt(b.N,1)}</td>
         <td class="pos">+$${a1fmt(a1money1k(b.a, b.a.minP),2)}</td>
         <td class="pos pct">+${a1fmt(b.a.minPct,2)}%</td><td class="pos">+$${a1fmt(a1money1k(b.a, b.a.bestP),2)}</td>
-        <td class="pos">+${a1fmt(b.a.bestPct,2)}%</td><td class="pos">${a1fmt(b.apy,2)}%</td>${nextBtn}`;
+        <td class="pos">+${a1fmt(b.a.bestPct,2)}%</td><td class="pos">${a1fmt(b.apy,2)}%</td>`;
     } else {
       tr.innerHTML = `<td>${label}</td><td colspan="10" style="color:var(--warn)">INFEASIBLE — put premium too big vs NO strike spacing</td>`;
     }
@@ -1457,6 +1504,13 @@ function a1renderSweep(){
     if (!show[i]) continue;  // all-infeasible case: show[0] (lo, nearest spot) is the only true
     renderRow(rows[i], `$${rows[i].toLocaleString()}`, false, combos[i]);
   }
+  // Stash the "next NO strike" info for the single button near the title, then draw it.
+  let base = null;
+  if (spot > 0){ const b = a1bestCombo(spot); if (b) base = b; }
+  if (!base){ const i = feas.findIndex(Boolean); if (i >= 0) base = combos[i]; }
+  const nxt = base ? a1nextNoStrike(base) : null;
+  a1sweepNext = (base && nxt) ? {k: nxt.k, no: nxt.no, base} : null;
+  a1renderSweepBtn();
   a1renderNoScenario();
 }
 
@@ -1472,14 +1526,14 @@ function a1switchAsset(sym){
   document.title = 'Alpha Leak — Arbbet (' + sym + ')';
   a1updateHdrPrice();
   document.querySelectorAll('#paneA1 .sym').forEach(el => el.textContent = sym);
-  $('sweepTitle').innerHTML = `Entry sweep — best always-positive combo if <span class="sym">${sym}</span> is at … today (loading)`;
+  $('sweepTitle').textContent = 'Entry sweep — best always-positive combo (loading)';
   $('sink').innerHTML = sym==='GOLD'
     ? `Premium = GLD put ask (USD, embedded CBOE snapshot — refresh via the paste box), NO = live Polymarket GC (50–90c only). <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L shown <b>per $1,000 capital</b>. INFEASIBLE = no N keeps the return positive at every price.`
     : `Premium = live Bybit ask (USD, cash-settled USDT), NO = live Polymarket (50–90c only). <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L shown <b>per $1,000 capital</b>. INFEASIBLE = no N keeps the return positive at every price.`;
   // reset manual inputs — they belong to the other asset
   a1noOverrides = {};
   a1noEditState = null;
-  a1noScenario = null;
+  a1noScenario = false;
   ['spot','putK','putAsk','betK','noRate','betN'].forEach(id => { $(id).value = ''; $(id).classList.add('blank'); });
   $('putSel').value = '';
   $('putManualRow').style.display = 'flex';
