@@ -312,7 +312,7 @@
 
   <div class="card wide">
     <div class="sweepHead">
-      <h2 id="sweepTitle">Entry sweep — best always-positive combo</h2>
+      <h2 id="sweepTitle">Entry sweep</h2>
       <div id="sweepNextBtn"></div>
     </div>
     <table id="sweepTable">
@@ -1455,7 +1455,7 @@ function a1renderSweep(){
   tb.innerHTML = '';
   const days = a1num('days') || 1;
   const [lo, hi, step] = a1sweepBounds();
-  $('sweepTitle').textContent = 'Entry sweep — best always-positive combo';
+  $('sweepTitle').textContent = 'Entry sweep';
   $('sink').innerHTML = (a1CUR.sym==='GLD'
     ? `Premium = GLD put ask (USD, embedded CBOE snapshot — refresh via the paste box), NO = live Polymarket GC (50–90c only). `
     : `Premium = live Bybit ask (USD, cash-settled USDT), NO = live Polymarket (50–90c only). `)
@@ -1526,7 +1526,7 @@ function a1switchAsset(sym){
   document.title = 'Alpha Leak — Arbbet (' + sym + ')';
   a1updateHdrPrice();
   document.querySelectorAll('#paneA1 .sym').forEach(el => el.textContent = sym);
-  $('sweepTitle').textContent = 'Entry sweep — best always-positive combo (loading)';
+  $('sweepTitle').textContent = 'Entry sweep (loading)';
   $('sink').innerHTML = sym==='GOLD'
     ? `Premium = GLD put ask (USD, embedded CBOE snapshot — refresh via the paste box), NO = live Polymarket GC (50–90c only). <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L shown <b>per $1,000 capital</b>. INFEASIBLE = no N keeps the return positive at every price.`
     : `Premium = live Bybit ask (USD, cash-settled USDT), NO = live Polymarket (50–90c only). <b>✎</b> = override a NO price when the live quote is stale/thin. P&amp;L shown <b>per $1,000 capital</b>. INFEASIBLE = no N keeps the return positive at every price.`;
