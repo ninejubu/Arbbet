@@ -1204,28 +1204,34 @@ function a1renderNoScenario(){
   const box = $('noScenario');
   if (!a1noScenario){ box.style.display = 'none'; box.innerHTML = ''; return; }
   const spot = a1num('spot');
-  // Same entry list the sweep table shows: 2 grid points below + 2 above the current price.
+  // Same entry list the sweep table shows: the "now" row + 2 grid points below + 2 above.
+  // Mirror the sweep EXACTLY — infeasible rows are shown as INFEASIBLE, not dropped.
   const rows = a1sweepWindowRows();
   const combos = rows.map(s => a1bestCombo(s));
-  const feas = combos.map(b => b != null);
-  const items = [];
+  const disp = [];
   if (spot > 0){
-    const b = a1bestCombo(spot);
-    if (b) items.push({label:'now $'+a1fmt(spot,2), s:spot, b});
+    disp.push({label:'now $'+a1fmt(spot,2), s:spot, b:a1bestCombo(spot)});
   }
   for (let i = 0; i < rows.length; i++){
-    if (!feas[i]) continue;
-    items.push({label:'$'+rows[i].toLocaleString(), s:rows[i], b:combos[i]});
+    disp.push({label:'$'+rows[i].toLocaleString(), s:rows[i], b:combos[i]});
   }
-  if (!items.length){
+  if (!disp.length){
     a1noScenario = false;
     box.style.display = 'block';
     box.innerHTML = `<h4>Next NO price scenario</h4>
-      <div class="scVerdict bad">No feasible entry right now, so there is no NO strike to test.</div>`;
+      <div class="scVerdict bad">No entry prices to test right now.</div>`;
     return;
   }
-  // The "next" strike is the one above the NO K the live-spot row uses.
-  const base = items[0].b;
+  // The "next" strike is the one above the NO K the first FEASIBLE row uses.
+  const firstFeas = disp.find(d => d.b);
+  if (!firstFeas){
+    a1noScenario = false;
+    box.style.display = 'block';
+    box.innerHTML = `<h4>Next NO price scenario</h4>
+      <div class="scVerdict bad">No feasible entry in this window, so there is no NO strike to test.</div>`;
+    return;
+  }
+  const base = firstFeas.b;
   const nxt = a1nextNoStrike(base);
   if (!nxt){
     a1noScenario = false;
@@ -1234,14 +1240,17 @@ function a1renderNoScenario(){
       <div class="scVerdict bad">No higher NO strike is listed (this is the top of the 50–90c market range), so there is no "next price" to test.</div>`;
     return;
   }
-  let anyNeg = 0, allNeg = true, xMin = Infinity, xMax = -Infinity;
-  const trs = items.map(({label, s, b}) => {
+  let anyNeg = 0, feasCount = 0, xMin = Infinity, xMax = -Infinity;
+  const trs = disp.map(({label, s, b}) => {
+    if (!b){
+      return `<tr><td>${label}</td><td colspan="5" style="color:var(--warn)">INFEASIBLE — put premium too big vs NO strike spacing</td></tr>`;
+    }
+    feasCount++;
     const a0 = a1analyze(s, b.Kp, b.prem, b.m.k, b.m.no, b.N);
     const a1n = a1analyze(s, b.Kp, b.prem, nxt.k, nxt.no, b.N);
     const c0 = a1negCount(a0, s, b.Kp, b.m.k), c1 = a1negCount(a1n, s, b.Kp, nxt.k);
     xMin = Math.min(xMin, c1.xMin); xMax = Math.max(xMax, c1.xMax);
     if (c1.neg > 0) anyNeg++;
-    if (c1.neg === 0) allNeg = false;
     return `<tr>
       <td>${label}</td>
       <td>$${b.m.k.toLocaleString()} @ ${a1fmt(b.m.no,1)}c</td>
@@ -1253,14 +1262,14 @@ function a1renderNoScenario(){
   }).join('');
   let verdict, vcls;
   if (anyNeg === 0){
-    verdict = `✓ NO at $${nxt.k.toLocaleString()} is ALSO always-positive at every entry — the strategy survives the higher NO price.`;
+    verdict = `✓ NO at $${nxt.k.toLocaleString()} is ALSO always-positive at every feasible entry — the strategy survives the higher NO price.`;
     vcls = 'ok';
   } else {
-    verdict = `✗ INFEASIBLE — NO at $${nxt.k.toLocaleString()} (${a1fmt(nxt.no,1)}c) makes P&L negative at ${anyNeg} of ${items.length} entries. Only the lower NO price keeps every price positive.`;
+    verdict = `✗ INFEASIBLE — NO at $${nxt.k.toLocaleString()} (${a1fmt(nxt.no,1)}c) makes P&L negative at ${anyNeg} of ${feasCount} feasible entries (the higher ones). Only the lower NO price keeps every price positive there.`;
     vcls = 'bad';
   }
   box.style.display = 'block';
-  box.innerHTML = `<h4>Next NO price scenario — NO K $${nxt.k.toLocaleString()} @ ${a1fmt(nxt.no,1)}c (next strike) · all ${items.length} entries</h4>
+  box.innerHTML = `<h4>Next NO price scenario — NO K $${nxt.k.toLocaleString()} @ ${a1fmt(nxt.no,1)}c (next strike) · ${disp.length} entries</h4>
     <table class="scTable">
       <thead><tr>
         <th>Entry</th><th>NO K (current)</th><th>Losing prices</th>
